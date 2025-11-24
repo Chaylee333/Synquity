@@ -442,9 +442,9 @@ const creatorsByAssetClass: Record<string, any[]> = {
   ],
 };
 
-export function AssetClassSeeAllPage({ 
-  assetClass, 
-  onNavigateHome, 
+export function AssetClassSeeAllPage({
+  assetClass,
+  onNavigateHome,
   onCreatorsClick,
   onCreatorClick,
   onTrendingClick
@@ -471,7 +471,7 @@ export function AssetClassSeeAllPage({
             {/* Logo */}
             <div className="flex items-center gap-2">
               <TrendingUp className="w-8 h-8 text-emerald-600" />
-              <h1 className="text-slate-900">StockTalk Forum</h1>
+              <h1 className="text-slate-900">Synquity</h1>
             </div>
 
             {/* Center Navigation */}
@@ -494,8 +494,8 @@ export function AssetClassSeeAllPage({
       <div className="container mx-auto px-4 py-8">
         {/* Back button and header */}
         <div className="mb-6">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={onCreatorsClick}
             className="mb-4"
           >
@@ -514,7 +514,7 @@ export function AssetClassSeeAllPage({
         {/* Creator Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {creators.map((creator) => (
-            <Card 
+            <Card
               key={creator.id}
               className="hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => onCreatorClick(creator.id)}
@@ -524,13 +524,12 @@ export function AssetClassSeeAllPage({
                   <div className="text-slate-500">
                     #{creator.rank}
                   </div>
-                  <Badge 
-                    variant="secondary" 
-                    className={`${
-                      creator.monthlyReturn >= 20 ? 'bg-emerald-100 text-emerald-700' :
-                      creator.monthlyReturn >= 10 ? 'bg-blue-100 text-blue-700' :
-                      'bg-slate-100 text-slate-700'
-                    }`}
+                  <Badge
+                    variant="secondary"
+                    className={`${creator.monthlyReturn >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                        creator.monthlyReturn >= 10 ? 'bg-blue-100 text-blue-700' :
+                          'bg-slate-100 text-slate-700'
+                      }`}
                   >
                     <TrendingUp className="w-3 h-3 mr-1" />
                     {creator.monthlyReturn}%
@@ -555,9 +554,8 @@ export function AssetClassSeeAllPage({
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <div className="text-slate-500 mb-1">Total P&L</div>
-                    <div className={`${
-                      creator.totalPnL >= 0 ? 'text-emerald-600' : 'text-red-600'
-                    }`}>
+                    <div className={`${creator.totalPnL >= 0 ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
                       ${(creator.totalPnL / 1000).toFixed(1)}K
                     </div>
                   </div>
@@ -571,11 +569,10 @@ export function AssetClassSeeAllPage({
                   </div>
                   <div>
                     <div className="text-slate-500 mb-1">Accuracy</div>
-                    <div className={`${
-                      creator.accuracy >= 75 ? 'text-emerald-600' :
-                      creator.accuracy >= 65 ? 'text-slate-600' :
-                      'text-red-600'
-                    }`}>
+                    <div className={`${creator.accuracy >= 75 ? 'text-emerald-600' :
+                        creator.accuracy >= 65 ? 'text-slate-600' :
+                          'text-red-600'
+                      }`}>
                       {creator.accuracy}%
                     </div>
                   </div>

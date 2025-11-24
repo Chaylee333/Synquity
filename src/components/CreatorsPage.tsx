@@ -4,11 +4,16 @@ import { Card, CardContent } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { useState } from 'react';
+import { ForumHeader } from './ForumHeader';
 
 interface CreatorsPageProps {
   onNavigateHome: () => void;
   onCreatorClick: (creatorId: string) => void;
   onTrendingClick: () => void;
+  onLoginClick: () => void;
+  onSignupClick: () => void;
+  onProfileClick: () => void;
+  onSettingsClick: () => void;
 }
 
 type RankingMode = 'risk-adjusted' | 'absolute';
@@ -318,12 +323,17 @@ const creatorsData = [
   },
 ];
 
-export function CreatorsPage({ 
-  onNavigateHome, 
+export function CreatorsPage({
+  onNavigateHome,
   onCreatorClick,
-  onTrendingClick
+  onTrendingClick,
+  onLoginClick,
+  onSignupClick,
+  onProfileClick,
+  onSettingsClick
 }: CreatorsPageProps) {
   const [rankingMode, setRankingMode] = useState<RankingMode>('risk-adjusted');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Sort creators based on ranking mode
   const sortedCreators = [...creatorsData].sort((a, b) => {
@@ -339,30 +349,18 @@ export function CreatorsPage({
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-8">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-8 h-8 text-emerald-600" />
-              <h1 className="text-slate-900">StockTalk Forum</h1>
-            </div>
-
-            {/* Center Navigation */}
-            <nav className="flex items-center gap-2">
-              <Button variant="ghost" onClick={onNavigateHome}>Discover</Button>
-              <Button variant="ghost" onClick={onTrendingClick}>Trending</Button>
-              <Button variant="default">Creators</Button>
-            </nav>
-
-            {/* Auth Buttons */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline">Log In</Button>
-              <Button variant="default">Sign Up</Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <ForumHeader
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onLoginClick={onLoginClick}
+        onSignupClick={onSignupClick}
+        onProfileClick={onProfileClick}
+        onSettingsClick={onSettingsClick}
+        onDiscoverClick={onNavigateHome}
+        onTrendingClick={onTrendingClick}
+        onCreatorsClick={() => { }} // Already on creators
+        currentPage="creators"
+      />
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
@@ -427,12 +425,11 @@ export function CreatorsPage({
                   <div className="grid grid-cols-12 gap-4 items-center">
                     {/* Rank */}
                     <div className="col-span-1">
-                      <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                        index === 0 ? 'bg-amber-100 text-amber-700' :
+                      <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${index === 0 ? 'bg-amber-100 text-amber-700' :
                         index === 1 ? 'bg-slate-200 text-slate-700' :
-                        index === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-slate-100 text-slate-600'
-                      }`}>
+                          index === 2 ? 'bg-orange-100 text-orange-700' :
+                            'bg-slate-100 text-slate-600'
+                        }`}>
                         {index + 1}
                       </div>
                     </div>
@@ -486,12 +483,12 @@ export function CreatorsPage({
 
                         {/* Sharpe Ratio */}
                         <div className="col-span-2 text-right">
-                          <Badge 
+                          <Badge
                             variant="secondary"
                             className={
                               creator.sharpeRatio >= 2.5 ? 'bg-emerald-100 text-emerald-700' :
-                              creator.sharpeRatio >= 2.0 ? 'bg-blue-100 text-blue-700' :
-                              'bg-slate-100 text-slate-700'
+                                creator.sharpeRatio >= 2.0 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-slate-100 text-slate-700'
                             }
                           >
                             {creator.sharpeRatio.toFixed(2)}

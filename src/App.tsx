@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DiscoverPage } from "./components/DiscoverPage";
 import { TrendingPage } from "./components/TrendingPage";
 import { CreatorsPage } from "./components/CreatorsPage";
@@ -8,6 +8,10 @@ import { CreatorPage } from "./components/CreatorPage";
 import { PostDetailPage } from "./components/PostDetailPage";
 import { LoginPage } from "./components/LoginPage";
 import { SignUpPage } from "./components/SignUpPage";
+import { ProfilePage } from "./components/ProfilePage";
+import { SettingsPage } from "./components/SettingsPage";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { Toaster } from 'sonner';
 
 type Page =
   | { type: "discover" }
@@ -18,15 +22,25 @@ type Page =
   | { type: "creator"; creatorId: string }
   | { type: "post"; postId: number }
   | { type: "login" }
-  | { type: "signup" };
+  | { type: "signup" }
+  | { type: "profile" }
+  | { type: "settings" };
 
-export default function App() {
+function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>({
     type: "discover",
   });
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUserId, setCurrentUserId] =
-    useState<string>("");
+
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+  const currentUserId = user?.id || "";
+
+  // Redirect to discover page if logged in while on login/signup page
+  useEffect(() => {
+    if (isLoggedIn && (currentPage.type === "login" || currentPage.type === "signup")) {
+      setCurrentPage({ type: "discover" });
+    }
+  }, [isLoggedIn, currentPage.type]);
 
   const navigateToTicker = (ticker: string) => {
     setCurrentPage({ type: "ticker", ticker });
@@ -64,16 +78,20 @@ export default function App() {
     setCurrentPage({ type: "trending" });
   };
 
+  const navigateToProfile = () => {
+    setCurrentPage({ type: "profile" });
+  };
+
+  const navigateToSettings = () => {
+    setCurrentPage({ type: "settings" });
+  };
+
   const handleLoginSuccess = (userId: string) => {
-    setIsLoggedIn(true);
-    setCurrentUserId(userId);
-    setCurrentPage({ type: "discover" });
+    // State update handled by AuthContext, useEffect will redirect
   };
 
   const handleSignupSuccess = (userId: string) => {
-    setIsLoggedIn(true);
-    setCurrentUserId(userId);
-    setCurrentPage({ type: "discover" });
+    // State update handled by AuthContext, useEffect will redirect
   };
 
   return (
@@ -87,6 +105,8 @@ export default function App() {
           onLoginClick={navigateToLogin}
           onSignupClick={navigateToSignup}
           onTrendingClick={navigateToTrending}
+          onProfileClick={navigateToProfile}
+          onSettingsClick={navigateToSettings}
         />
       )}
       {currentPage.type === "trending" && (
@@ -98,6 +118,8 @@ export default function App() {
           onCreatorsClick={navigateToCreators}
           onLoginClick={navigateToLogin}
           onSignupClick={navigateToSignup}
+          onProfileClick={navigateToProfile}
+          onSettingsClick={navigateToSettings}
         />
       )}
       {currentPage.type === "creators" && (
@@ -105,6 +127,10 @@ export default function App() {
           onNavigateHome={navigateToHome}
           onCreatorClick={navigateToCreator}
           onTrendingClick={navigateToTrending}
+          onLoginClick={navigateToLogin}
+          onSignupClick={navigateToSignup}
+          onProfileClick={navigateToProfile}
+          onSettingsClick={navigateToSettings}
         />
       )}
       {currentPage.type === "assetClassSeeAll" && (
@@ -156,6 +182,21 @@ export default function App() {
           onSignupSuccess={handleSignupSuccess}
         />
       )}
+      {currentPage.type === "profile" && (
+        <ProfilePage onNavigateHome={navigateToHome} />
+      )}
+      {currentPage.type === "settings" && (
+        <SettingsPage onNavigateHome={navigateToHome} />
+      )}
+      <Toaster />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

@@ -4,7 +4,9 @@ import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { fetchCompanies, fetchPosts } from '../lib/api';
+import { CreatePostModal } from './CreatePostModal';
 import {
   Select,
   SelectContent,
@@ -12,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import { ForumHeader } from './ForumHeader';
 
 interface DiscoverPageProps {
   onTickerClick: (ticker: string) => void;
@@ -21,6 +24,8 @@ interface DiscoverPageProps {
   onCreatorsClick: () => void;
   onLoginClick: () => void;
   onSignupClick: () => void;
+  onProfileClick: () => void;
+  onSettingsClick: () => void;
 }
 
 type MasterCategory = 'Companies' | 'Investment Research' | 'Creators';
@@ -443,37 +448,107 @@ export function DiscoverPage({
   onTrendingClick,
   onCreatorsClick,
   onLoginClick,
-  onSignupClick
+  onSignupClick,
+  onProfileClick,
+  onSettingsClick
 }: DiscoverPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [masterCategory, setMasterCategory] = useState<MasterCategory>('Investment Research');
-  
+
+  // API data state
+  const [apiCompanies, setApiCompanies] = useState<any[]>([]);
+  const [apiPosts, setApiPosts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Create Post Modal state
+  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+
+  // Fetch companies and posts from API
+  const loadData = async () => {
+    setIsLoading(true);
+    const [companiesData, postsData] = await Promise.all([
+      fetchCompanies(),
+      fetchPosts({ limit: 50 })
+    ]);
+    console.log('Fetched companies from Supabase:', companiesData);
+    console.log('Fetched posts from Supabase:', postsData);
+    setApiCompanies(companiesData);
+    setApiPosts(postsData);
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   // Companies filters
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
   const [selectedMarketCap, setSelectedMarketCap] = useState<string>('all');
-  
+
   // Investment Research filters
   const [selectedMarket, setSelectedMarket] = useState<string>('all');
   const [selectedTimeHorizon, setSelectedTimeHorizon] = useState<string>('all');
   const [selectedRiskProfile, setSelectedRiskProfile] = useState<string>('all');
-  
+
   // Creators filters
   const [creatorSortBy, setCreatorSortBy] = useState<string>('risk-adjusted');
 
-  // Filter companies
-  const filteredCompanies = companies.filter(company => {
-    if (selectedIndustry !== 'all' && company.industry !== selectedIndustry) return false;
-    if (selectedMarketCap !== 'all' && company.marketCap !== selectedMarketCap) return false;
-    return true;
-  });
+  // Filter companies from API data
+  const filteredCompanies = apiCompanies
+    .filter(company => {
+      const industry = company.industry || '';
+      const marketCap = company.company_metrics?.[0]?.market_cap || '';
 
-  // Filter posts
-  const filteredPosts = ddPosts.filter(post => {
-    if (selectedMarket !== 'all' && post.market !== selectedMarket) return false;
-    if (selectedTimeHorizon !== 'all' && post.timeHorizon !== selectedTimeHorizon) return false;
-    if (selectedRiskProfile !== 'all' && post.riskProfile !== selectedRiskProfile) return false;
-    return true;
-  });
+      if (selectedIndustry !== 'all' && industry !== selectedIndustry) return false;
+      // For now, skip market cap filtering since the data format is different
+      return true;
+    })
+    .map(company => ({
+      ticker: company.ticker,
+      name: company.name,
+      industry: company.industry || 'N/A',
+      marketCap: company.company_metrics?.[0]?.market_cap || 'N/A',
+      price: company.company_metrics?.[0]?.price || 0,
+      change: company.company_metrics?.[0]?.change || 0,
+      changePercent: company.company_metrics?.[0]?.change_percent || 0,
+      description: company.description || '',
+      employees: company.employees || 0,
+      founded: company.founded || 0,
+      posts: 0, // This would need to be calculated from posts table
+    }));
+
+  // Filter posts from API data
+  const filteredPosts = apiPosts
+    .filter(post => {
+      if (selectedMarket !== 'all' && post.market !== selectedMarket) return false;
+      if (selectedTimeHorizon !== 'all' && post.time_horizon !== selectedTimeHorizon) return false;
+      if (selectedRiskProfile !== 'all' && post.risk_profile !== selectedRiskProfile) return false;
+      return true;
+    })
+    .map(post => ({
+      id: post.id,
+      title: post.title,
+      author: post.profiles?.username || post.profiles?.full_name || 'Anonymous',
+      authorId: post.author_id, // Add authorId
+      authorAvatar: post.profiles?.avatar_url || '',
+      avatar: post.profiles?.avatar_url || '', // Add avatar (duplicate for compatibility)
+      verified: post.profiles?.is_verified || false,
+      ticker: post.ticker,
+      summary: post.content.substring(0, 200) + '...', // First 200 chars as summary
+      sentiment: post.sentiment || 'neutral',
+      market: post.market || 'Equities',
+      timeHorizon: post.time_horizon || 'Medium',
+      riskProfile: post.risk_profile || 'Moderate',
+      readTime: post.read_time || '5 min',
+      likes: post.post_likes?.[0]?.count || 0,
+      comments: post.comments?.[0]?.count || 0,
+      stockPerformance: post.post_performance_tracking?.[0]?.stock_performance || 0,
+      credibilityScore: 85, // Would need to calculate from author's performance
+      winRate: 75, // Would need to calculate from author's performance
+      createdAt: post.created_at,
+      timestamp: post.created_at, // Add timestamp (duplicate for compatibility)
+      followers: 0, // Would need to fetch from follows table
+    }));
 
   // Sort creators
   const sortedCreators = [...creators].sort((a, b) => {
@@ -509,29 +584,25 @@ export function DiscoverPage({
 
   return (
     <>
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-8">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-8 h-8 text-emerald-600" />
-              <h1 className="text-slate-900">StockTalk Forum</h1>
-            </div>
+      <ForumHeader
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onLoginClick={onLoginClick}
+        onSignupClick={onSignupClick}
+        onProfileClick={onProfileClick}
+        onSettingsClick={onSettingsClick}
+        onDiscoverClick={() => { }} // Already on discover
+        onTrendingClick={onTrendingClick}
+        onCreatorsClick={onCreatorsClick}
+        onNewPostClick={() => setIsCreatePostModalOpen(true)}
+        currentPage="discover"
+      />
 
-            {/* Center Navigation */}
-            <nav className="flex items-center gap-2">
-              <Button variant="default">Discover</Button>
-              <Button variant="ghost" onClick={onTrendingClick}>Trending</Button>
-              <Button variant="ghost" onClick={onCreatorsClick}>Creators</Button>
-            </nav>
-
-            {/* Auth Buttons */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={onLoginClick}>Log In / Sign Up</Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <CreatePostModal
+        isOpen={isCreatePostModalOpen}
+        onClose={() => setIsCreatePostModalOpen(false)}
+        onSuccess={() => loadData()}
+      />
 
       {/* Search Bar */}
       <div className="bg-white border-b border-slate-200">
@@ -671,9 +742,9 @@ export function DiscoverPage({
           <div className="space-y-4">
             {/* Companies View */}
             {masterCategory === 'Companies' && filteredCompanies.map(company => (
-              <Card 
-                key={company.ticker} 
-                className="hover:shadow-md transition-shadow cursor-pointer" 
+              <Card
+                key={company.ticker}
+                className="hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => onTickerClick(company.ticker)}
               >
                 <CardContent className="p-6">
@@ -751,7 +822,7 @@ export function DiscoverPage({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4 mb-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span 
+                          <span
                             className="text-slate-900 hover:text-emerald-600 cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -768,7 +839,7 @@ export function DiscoverPage({
                         </div>
                       </div>
 
-                      <h3 
+                      <h3
                         className="text-slate-900 mb-2 hover:text-emerald-600"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -784,8 +855,8 @@ export function DiscoverPage({
 
                       {/* Metadata */}
                       <div className="flex items-center gap-3 mb-3 flex-wrap">
-                        <Badge 
-                          variant="secondary" 
+                        <Badge
+                          variant="secondary"
                           className="cursor-pointer hover:bg-emerald-100"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -800,8 +871,8 @@ export function DiscoverPage({
                             post.sentiment === 'bullish'
                               ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
                               : post.sentiment === 'bearish'
-                              ? 'border-red-200 text-red-700 bg-red-50'
-                              : 'border-slate-200 text-slate-700 bg-slate-50'
+                                ? 'border-red-200 text-red-700 bg-red-50'
+                                : 'border-slate-200 text-slate-700 bg-slate-50'
                           }
                         >
                           {post.sentiment.charAt(0).toUpperCase() + post.sentiment.slice(1)}
@@ -850,9 +921,9 @@ export function DiscoverPage({
 
             {/* Creators View */}
             {masterCategory === 'Creators' && sortedCreators.map((creator, index) => (
-              <Card 
-                key={creator.id} 
-                className="hover:shadow-md transition-shadow cursor-pointer" 
+              <Card
+                key={creator.id}
+                className="hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => onCreatorClick(creator.id)}
               >
                 <CardContent className="p-6">
@@ -885,12 +956,11 @@ export function DiscoverPage({
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                            index === 0 ? 'bg-amber-100 text-amber-700' :
+                          <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${index === 0 ? 'bg-amber-100 text-amber-700' :
                             index === 1 ? 'bg-slate-200 text-slate-700' :
-                            index === 2 ? 'bg-orange-100 text-orange-700' :
-                            'bg-slate-100 text-slate-600'
-                          }`}>
+                              index === 2 ? 'bg-orange-100 text-orange-700' :
+                                'bg-slate-100 text-slate-600'
+                            }`}>
                             {index + 1}
                           </div>
                         </div>
@@ -915,12 +985,12 @@ export function DiscoverPage({
                           <span className="text-emerald-600">+{creator.pnlAnnualizedPercent}% P&L</span>
                         </div>
                         <div>
-                          <Badge 
+                          <Badge
                             variant="secondary"
                             className={
                               creator.sharpeRatio >= 2.5 ? 'bg-emerald-100 text-emerald-700' :
-                              creator.sharpeRatio >= 2.0 ? 'bg-blue-100 text-blue-700' :
-                              'bg-slate-100 text-slate-700'
+                                creator.sharpeRatio >= 2.0 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-slate-100 text-slate-700'
                             }
                           >
                             Sharpe {creator.sharpeRatio.toFixed(2)}

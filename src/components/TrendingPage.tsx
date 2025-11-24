@@ -3,53 +3,50 @@ import { TickerRankings } from './TickerRankings';
 import { CreatorRankings } from './CreatorRankings';
 import { TrendingPosts } from './TrendingPosts';
 import { Button } from './ui/button';
+import { ForumHeader } from './ForumHeader';
+import { useState } from 'react';
 
 interface TrendingPageProps {
   onTickerClick: (ticker: string) => void;
   onCreatorClick: (creatorId: string) => void;
   onPostClick: (postId: number) => void;
   onNavigateHome: () => void;
-  onBrowseClick: () => void;
+  onBrowseClick?: () => void;
   onCreatorsClick: () => void;
   onLoginClick: () => void;
   onSignupClick: () => void;
+  onProfileClick: () => void;
+  onSettingsClick: () => void;
 }
 
-export function TrendingPage({ 
-  onTickerClick, 
-  onCreatorClick, 
-  onPostClick, 
+export function TrendingPage({
+  onTickerClick,
+  onCreatorClick,
+  onPostClick,
   onNavigateHome,
-  onBrowseClick, 
-  onCreatorsClick, 
-  onLoginClick, 
-  onSignupClick 
+  onBrowseClick,
+  onCreatorsClick,
+  onLoginClick,
+  onSignupClick,
+  onProfileClick,
+  onSettingsClick
 }: TrendingPageProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
   return (
     <>
-      <header className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-8">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-8 h-8 text-emerald-600" />
-              <h1 className="text-slate-900">StockTalk Forum</h1>
-            </div>
-
-            {/* Center Navigation */}
-            <nav className="flex items-center gap-2">
-              <Button variant="ghost" onClick={onNavigateHome}>Discover</Button>
-              <Button variant="default">Trending</Button>
-              <Button variant="ghost" onClick={onCreatorsClick}>Creators</Button>
-            </nav>
-
-            {/* Auth Buttons */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={onLoginClick}>Log In / Sign Up</Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <ForumHeader
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onLoginClick={onLoginClick}
+        onSignupClick={onSignupClick}
+        onProfileClick={onProfileClick}
+        onSettingsClick={onSettingsClick}
+        onDiscoverClick={onNavigateHome}
+        onTrendingClick={() => { }} // Already on trending
+        onCreatorsClick={onCreatorsClick}
+        currentPage="trending"
+      />
 
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
