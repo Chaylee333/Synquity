@@ -41,6 +41,27 @@ export async function fetchTickerDetails(ticker: string) {
     return data;
 }
 
+export async function searchTickers(query: string, limit: number = 10) {
+    if (!query || query.trim().length === 0) {
+        return [];
+    }
+
+    const searchTerm = query.toUpperCase();
+
+    const { data, error } = await supabase
+        .from('companies')
+        .select('ticker, name, industry')
+        .or(`ticker.ilike.%${searchTerm}%,name.ilike.%${query}%`)
+        .limit(limit);
+
+    if (error) {
+        console.error('Error searching tickers:', error);
+        return [];
+    }
+
+    return data || [];
+}
+
 // ============================================
 // POSTS
 // ============================================
@@ -126,7 +147,80 @@ export async function fetchTrendingPosts(limit: number = 10) {
 // COMMENTS
 // ============================================
 
-export async function addComment(postId: number, content: string) {
+export async function fetchComments(postId: number) {
+    const { data, error } = await supabase
+        .from('comments')
+        .select(`
+            *,
+            profiles:author_id (
+                id,
+                username,
+                full_name,
+                avatar_url,
+                is_verified
+            ),
+            comment_likes (count)
+        `)
+        .eq('post_id', postId)
+        .is('parent_id', null)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching comments:', error);
+        return [];
+    }
+
+    // Fetch replies for each comment
+    const commentsWithReplies = await Promise.all(
+        (data || []).map(async (comment) => {
+            const replies = await fetchReplies(comment.id);
+            return {
+                ...comment,
+                replies: replies
+            };
+        })
+    );
+
+    return commentsWithReplies;
+}
+
+export async function fetchReplies(commentId: number): Promise<any[]> {
+    const { data, error } = await supabase
+        .from('comments')
+        .select(`
+            *,
+            profiles:author_id (
+                id,
+                username,
+                full_name,
+                avatar_url,
+                is_verified
+            ),
+            comment_likes (count)
+        `)
+        .eq('parent_id', commentId)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching replies:', error);
+        return [];
+    }
+
+    // Recursively fetch nested replies
+    const repliesWithNested = await Promise.all(
+        (data || []).map(async (reply) => {
+            const nestedReplies = await fetchReplies(reply.id);
+            return {
+                ...reply,
+                replies: nestedReplies
+            };
+        })
+    );
+
+    return repliesWithNested;
+}
+
+export async function addComment(postId: number, content: string, parentId?: number) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -139,9 +233,19 @@ export async function addComment(postId: number, content: string) {
             post_id: postId,
             author_id: user.id,
             content,
+            parent_id: parentId || null,
             created_at: new Date().toISOString()
         })
-        .select()
+        .select(`
+            *,
+            profiles:author_id (
+                id,
+                username,
+                full_name,
+                avatar_url,
+                is_verified
+            )
+        `)
         .single();
 
     if (error) {
@@ -215,6 +319,86 @@ export async function createPost(post: {
     if (error) {
         console.error('Error creating post:', error);
         throw error;
+    }
+
+    return data;
+}
+
+export async function fetchUserPosts(userId: string) {
+    const { data, error } = await supabase
+        .from('posts')
+        .select(`
+            *,
+            profiles!posts_author_id_fkey (
+                id,
+                username,
+                full_name,
+                avatar_url
+            ),
+            post_likes (count),
+            comments (count)
+        `)
+        .eq('author_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching user posts:', error);
+        return [];
+    }
+
+    // Transform the data to include counts
+    const transformedData = (data || []).map(post => ({
+        ...post,
+        like_count: post.post_likes?.[0]?.count || 0,
+        comment_count: post.comments?.[0]?.count || 0,
+    }));
+
+    return transformedData;
+}
+
+export async function fetchUserComments(userId: string) {
+    const { data, error } = await supabase
+        .from('comments')
+        .select(`
+            *,
+            profiles!comments_author_id_fkey (
+                id,
+                username,
+                full_name,
+                avatar_url
+            ),
+            posts!comments_post_id_fkey (
+                id,
+                title,
+                ticker
+            ),
+            comment_likes (count)
+        `)
+        .eq('author_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching user comments:', error);
+        return [];
+    }
+
+    return data || [];
+}
+
+export async function fetchUserPerformanceMetrics(userId: string) {
+    const { data, error } = await supabase
+        .from('creator_performance_metrics')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+    if (error) {
+        // If no performance metrics exist yet, return null
+        if (error.code === 'PGRST116') {
+            return null;
+        }
+        console.error('Error fetching user performance metrics:', error);
+        return null;
     }
 
     return data;
@@ -367,6 +551,124 @@ export async function togglePostLike(postId: number) {
         if (error) throw error;
         return true; // liked
     }
+}
+
+export async function checkPostLiked(postId: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return false;
+    }
+
+    const { data } = await supabase
+        .from('post_likes')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('post_id', postId)
+        .single();
+
+    return !!data;
+}
+
+export async function getPostLikeCount(postId: number) {
+    const { count, error } = await supabase
+        .from('post_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', postId);
+
+    if (error) {
+        console.error('Error getting post like count:', error);
+        return 0;
+    }
+
+    return count || 0;
+}
+
+export async function toggleCommentLike(commentId: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+
+    console.log('Toggling comment like for:', { userId: user.id, commentId });
+
+    // Check if already liked
+    const { data: existingLike, error: selectError } = await supabase
+        .from('comment_likes')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('comment_id', commentId)
+        .single();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+        console.error('Error checking comment like:', selectError);
+        throw new Error(`Failed to check like status: ${selectError.message}`);
+    }
+
+    if (existingLike) {
+        // Unlike
+        console.log('Unliking comment...');
+        const { error } = await supabase
+            .from('comment_likes')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('comment_id', commentId);
+
+        if (error) {
+            console.error('Error unliking comment:', error);
+            throw new Error(`Failed to unlike: ${error.message}`);
+        }
+        console.log('Comment unliked successfully');
+        return false; // unliked
+    } else {
+        // Like
+        console.log('Liking comment...');
+        const { error } = await supabase
+            .from('comment_likes')
+            .insert({
+                user_id: user.id,
+                comment_id: commentId,
+            });
+
+        if (error) {
+            console.error('Error liking comment:', error);
+            throw new Error(`Failed to like: ${error.message}`);
+        }
+        console.log('Comment liked successfully');
+        return true; // liked
+    }
+}
+
+export async function checkCommentLiked(commentId: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return false;
+    }
+
+    const { data } = await supabase
+        .from('comment_likes')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('comment_id', commentId)
+        .single();
+
+    return !!data;
+}
+
+export async function getCommentLikeCount(commentId: number) {
+    const { count, error } = await supabase
+        .from('comment_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('comment_id', commentId);
+
+    if (error) {
+        console.error('Error getting comment like count:', error);
+        return 0;
+    }
+
+    return count || 0;
 }
 
 // ============================================

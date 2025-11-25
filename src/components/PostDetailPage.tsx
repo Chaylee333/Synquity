@@ -1,11 +1,24 @@
-import { useState } from 'react';
-import { ArrowLeft, ThumbsUp, MessageSquare, BadgeCheck, Send, TrendingUp, TrendingDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, ThumbsUp, MessageSquare, BadgeCheck, Send, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
+import { 
+  fetchPostById, 
+  fetchComments, 
+  addComment, 
+  togglePostLike, 
+  toggleCommentLike,
+  checkPostLiked,
+  checkCommentLiked,
+  getPostLikeCount,
+  getCommentLikeCount
+} from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface PostDetailPageProps {
   postId: number;
@@ -328,15 +341,132 @@ const initialComments: Record<number, Comment[]> = {
 };
 
 export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreatorClick }: PostDetailPageProps) {
-  const post = allPosts[postId];
-  const [comments, setComments] = useState<Comment[]>(initialComments[postId] || []);
+  const { user } = useAuth();
+  const [post, setPost] = useState<any>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [postLiked, setPostLiked] = useState(post?.liked || false);
-  const [postUpvotes, setPostUpvotes] = useState(post?.upvotes || 0);
+  const [postLiked, setPostLiked] = useState(false);
+  const [postUpvotes, setPostUpvotes] = useState(0);
   const [commentLikes, setCommentLikes] = useState<Record<number, boolean>>({});
   const [commentUpvotes, setCommentUpvotes] = useState<Record<number, number>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch post data
+  useEffect(() => {
+    loadPostData();
+  }, [postId]);
+
+  const loadPostData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch post
+      const postData = await fetchPostById(postId);
+      if (!postData) {
+        toast.error('Post not found');
+        return;
+      }
+      setPost(postData);
+
+      // Fetch comments
+      const commentsData = await fetchComments(postId);
+      
+      // Transform comments to include proper display data
+      const transformedComments = transformCommentsForDisplay(commentsData);
+      setComments(transformedComments);
+
+      // Check if user liked the post
+      if (user) {
+        const liked = await checkPostLiked(postId);
+        setPostLiked(liked);
+      }
+
+      // Get post like count
+      const likeCount = await getPostLikeCount(postId);
+      setPostUpvotes(likeCount);
+
+      // Check which comments user liked and get like counts
+      if (commentsData.length > 0) {
+        const commentLikeStatus: Record<number, boolean> = {};
+        const commentLikeCounts: Record<number, number> = {};
+        
+        const allIds = getAllCommentIds(commentsData);
+        
+        await Promise.all(
+          allIds.map(async (commentId) => {
+            const count = await getCommentLikeCount(commentId);
+            commentLikeCounts[commentId] = count;
+            
+            if (user) {
+              const liked = await checkCommentLiked(commentId);
+              commentLikeStatus[commentId] = liked;
+            }
+          })
+        );
+        
+        setCommentLikes(commentLikeStatus);
+        setCommentUpvotes(commentLikeCounts);
+      }
+    } catch (error) {
+      console.error('Error loading post:', error);
+      toast.error('Failed to load post');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Transform database comments to display format
+  const transformCommentsForDisplay = (comments: any[]): Comment[] => {
+    return comments.map(comment => ({
+      id: comment.id,
+      author: comment.profiles?.username || comment.profiles?.full_name || 'Anonymous',
+      authorId: comment.author_id,
+      avatar: comment.profiles?.avatar_url || (comment.profiles?.username?.substring(0, 2).toUpperCase() || 'AN'),
+      verified: comment.profiles?.is_verified || false,
+      timestamp: formatTimestamp(comment.created_at),
+      content: comment.content,
+      upvotes: comment.comment_likes?.[0]?.count || 0,
+      liked: false,
+      replies: comment.replies ? transformCommentsForDisplay(comment.replies) : [],
+    }));
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Helper to get all comment IDs recursively
+  const getAllCommentIds = (comments: any[]): number[] => {
+    const ids: number[] = [];
+    comments.forEach(comment => {
+      ids.push(comment.id);
+      if (comment.replies && comment.replies.length > 0) {
+        ids.push(...getAllCommentIds(comment.replies));
+      }
+    });
+    return ids;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
 
   if (!post) {
     return (
@@ -372,64 +502,134 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
     });
   };
 
-  const handlePostLike = () => {
-    if (postLiked) {
-      setPostUpvotes(postUpvotes - 1);
-      setPostLiked(false);
-    } else {
-      setPostUpvotes(postUpvotes + 1);
-      setPostLiked(true);
+  const handlePostLike = async () => {
+    if (!user) {
+      toast.error('Please log in to like posts');
+      return;
+    }
+
+    try {
+      const isLiked = await togglePostLike(postId);
+      setPostLiked(isLiked);
+      setPostUpvotes(prev => isLiked ? prev + 1 : prev - 1);
+      toast.success(isLiked ? 'Post liked!' : 'Post unliked');
+    } catch (error) {
+      console.error('Error toggling post like:', error);
+      toast.error('Failed to update like');
     }
   };
 
-  const handleCommentLike = (commentId: number, currentUpvotes: number) => {
-    const isLiked = commentLikes[commentId];
-    if (isLiked) {
-      setCommentUpvotes({ ...commentUpvotes, [commentId]: (commentUpvotes[commentId] || currentUpvotes) - 1 });
-      setCommentLikes({ ...commentLikes, [commentId]: false });
-    } else {
-      setCommentUpvotes({ ...commentUpvotes, [commentId]: (commentUpvotes[commentId] || currentUpvotes) + 1 });
-      setCommentLikes({ ...commentLikes, [commentId]: true });
+  const handleCommentLike = async (commentId: number) => {
+    if (!user) {
+      toast.error('Please log in to like comments');
+      return;
+    }
+
+    try {
+      const isLiked = await toggleCommentLike(commentId);
+      setCommentLikes(prev => ({ ...prev, [commentId]: isLiked }));
+      setCommentUpvotes(prev => ({ 
+        ...prev, 
+        [commentId]: (prev[commentId] || 0) + (isLiked ? 1 : -1) 
+      }));
+    } catch (error) {
+      console.error('Error toggling comment like:', error);
+      toast.error('Failed to update like');
     }
   };
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      const comment: Comment = {
-        id: Date.now(),
-        author: 'You',
-        authorId: 'current-user',
-        avatar: 'YU',
-        verified: false,
-        timestamp: 'Just now',
-        content: newComment,
-        upvotes: 0,
-        liked: false,
-        replies: [],
-      };
-      setComments([comment, ...comments]);
+  const handleAddComment = async () => {
+    if (!user) {
+      toast.error('Please log in to comment');
+      return;
+    }
+
+    if (!newComment.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await addComment(postId, newComment);
+      
+      // Reload all comments to get the fresh data with proper structure
+      const commentsData = await fetchComments(postId);
+      const transformedComments = transformCommentsForDisplay(commentsData);
+      setComments(transformedComments);
+      
+      // Refresh like counts for new comments
+      const allIds = getAllCommentIds(commentsData);
+      const commentLikeCounts: Record<number, number> = {};
+      const commentLikeStatus: Record<number, boolean> = {};
+      
+      await Promise.all(
+        allIds.map(async (commentId) => {
+          const count = await getCommentLikeCount(commentId);
+          commentLikeCounts[commentId] = count;
+          
+          if (user) {
+            const liked = await checkCommentLiked(commentId);
+            commentLikeStatus[commentId] = liked;
+          }
+        })
+      );
+      
+      setCommentUpvotes(commentLikeCounts);
+      setCommentLikes(commentLikeStatus);
+      
       setNewComment('');
+      toast.success('Comment added!');
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast.error('Failed to add comment');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleAddReply = (targetId: number) => {
-    if (replyText.trim()) {
-      const reply: Reply = {
-        id: Date.now(),
-        author: 'You',
-        authorId: 'current-user',
-        avatar: 'YU',
-        verified: false,
-        timestamp: 'Just now',
-        content: replyText,
-        upvotes: 0,
-        liked: false,
-        replies: [],
-      };
+  const handleAddReply = async (parentCommentId: number) => {
+    if (!user) {
+      toast.error('Please log in to reply');
+      return;
+    }
 
-      setComments(addReplyToComment(comments, targetId, reply));
+    if (!replyText.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await addComment(postId, replyText, parentCommentId);
+      
+      // Reload all comments to get the fresh data with proper structure
+      const commentsData = await fetchComments(postId);
+      const transformedComments = transformCommentsForDisplay(commentsData);
+      setComments(transformedComments);
+      
+      // Refresh like counts for new comments
+      const allIds = getAllCommentIds(commentsData);
+      const commentLikeCounts: Record<number, number> = {};
+      const commentLikeStatus: Record<number, boolean> = {};
+      
+      await Promise.all(
+        allIds.map(async (commentId) => {
+          const count = await getCommentLikeCount(commentId);
+          commentLikeCounts[commentId] = count;
+          
+          if (user) {
+            const liked = await checkCommentLiked(commentId);
+            commentLikeStatus[commentId] = liked;
+          }
+        })
+      );
+      
+      setCommentUpvotes(commentLikeCounts);
+      setCommentLikes(commentLikeStatus);
+      
       setReplyText('');
       setReplyingTo(null);
+      toast.success('Reply added!');
+    } catch (error) {
+      console.error('Error adding reply:', error);
+      toast.error('Failed to add reply');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -446,7 +646,9 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
               className="w-7 h-7 cursor-pointer"
               onClick={() => onCreatorClick(reply.authorId)}
             >
-              <AvatarFallback className="text-xs">{reply.avatar}</AvatarFallback>
+              <AvatarFallback className="text-xs bg-emerald-100 text-emerald-700">
+                {reply.avatar}
+              </AvatarFallback>
             </Avatar>
 
             <div className="flex-1">
@@ -472,10 +674,10 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                   variant="ghost"
                   size="sm"
                   className={`gap-1 h-6 text-xs ${commentLikes[reply.id] ? 'text-emerald-600' : 'text-slate-500'}`}
-                  onClick={() => handleCommentLike(reply.id, reply.upvotes)}
+                  onClick={() => handleCommentLike(reply.id)}
                 >
                   <ThumbsUp className="w-3 h-3" />
-                  {commentUpvotes[reply.id] ?? reply.upvotes}
+                  {commentUpvotes[reply.id] ?? 0}
                 </Button>
                 <Button
                   variant="ghost"
@@ -513,9 +715,19 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                       size="sm"
                       onClick={() => handleAddReply(reply.id)}
                       className="gap-2"
+                      disabled={isSubmitting || !replyText.trim()}
                     >
-                      <Send className="w-3 h-3" />
-                      Reply
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Replying...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3 h-3" />
+                          Reply
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -568,66 +780,78 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                   ${post.ticker}
                 </Badge>
                 <Badge variant="outline">{post.category}</Badge>
-                <Badge
-                  variant="outline"
-                  className={
-                    post.sentiment === 'bullish'
-                      ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                      : post.sentiment === 'bearish'
-                      ? 'border-red-200 text-red-700 bg-red-50'
-                      : 'border-slate-200 text-slate-700'
-                  }
-                >
-                  {post.sentiment}
-                </Badge>
-                <span className="text-slate-500">• {post.readTime} read</span>
+                {post.sentiment && (
+                  <Badge
+                    variant="outline"
+                    className={
+                      post.sentiment === 'bullish'
+                        ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
+                        : post.sentiment === 'bearish'
+                        ? 'border-red-200 text-red-700 bg-red-50'
+                        : 'border-slate-200 text-slate-700'
+                    }
+                  >
+                    {post.sentiment.charAt(0).toUpperCase() + post.sentiment.slice(1)}
+                  </Badge>
+                )}
+                {post.read_time && <span className="text-slate-500">• {post.read_time} read</span>}
               </div>
 
               <h1 className="text-slate-900 mb-4">{post.title}</h1>
 
               {/* Stock Performance Banner */}
-              <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-slate-600 mb-1">Stock Performance Since Post</div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-900">${post.ticker}</span>
-                      <div className={`flex items-center gap-1 ${
-                        post.stockPerformance >= 0 ? 'text-emerald-600' : 'text-red-600'
-                      }`}>
-                        {post.stockPerformance >= 0 ? (
-                          <TrendingUp className="w-5 h-5" />
-                        ) : (
-                          <TrendingDown className="w-5 h-5" />
-                        )}
-                        <span className="text-xl">
-                          {post.stockPerformance >= 0 ? '+' : ''}{post.stockPerformance}%
-                        </span>
+              {post.post_performance_tracking && post.post_performance_tracking.length > 0 && (
+                <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-slate-600 mb-1">Stock Performance Since Post</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-900">${post.ticker}</span>
+                        <div className={`flex items-center gap-1 ${
+                          post.post_performance_tracking[0].stock_performance >= 0 ? 'text-emerald-600' : 'text-red-600'
+                        }`}>
+                          {post.post_performance_tracking[0].stock_performance >= 0 ? (
+                            <TrendingUp className="w-5 h-5" />
+                          ) : (
+                            <TrendingDown className="w-5 h-5" />
+                          )}
+                          <span className="text-xl">
+                            {post.post_performance_tracking[0].stock_performance >= 0 ? '+' : ''}{post.post_performance_tracking[0].stock_performance}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-slate-500 text-sm">
+                        Posted {new Date(post.created_at).toLocaleDateString()}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-slate-500 text-sm">Posted {post.timestamp}</div>
-                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <div 
                   className="flex items-center gap-3 cursor-pointer hover:opacity-80"
-                  onClick={() => onCreatorClick(post.authorId)}
+                  onClick={() => onCreatorClick(post.author_id)}
                 >
                   <Avatar className="w-10 h-10">
-                    <AvatarFallback>{post.avatar}</AvatarFallback>
+                    <AvatarFallback>
+                      {post.profiles?.username?.substring(0, 2).toUpperCase() || 'AN'}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-900">{post.author}</span>
-                      {post.verified && (
+                      <span className="text-slate-900">
+                        {post.profiles?.username || post.profiles?.full_name || 'Anonymous'}
+                      </span>
+                      {post.profiles?.is_verified && (
                         <BadgeCheck className="w-4 h-4 text-blue-600" />
                       )}
                     </div>
-                    <span className="text-slate-500">{post.timestamp}</span>
+                    <span className="text-slate-500">
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
 
@@ -676,9 +900,18 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                   rows={3}
                 />
                 <div className="flex justify-end">
-                  <Button onClick={handleAddComment} className="gap-2">
-                    <Send className="w-4 h-4" />
-                    Post Comment
+                  <Button onClick={handleAddComment} className="gap-2" disabled={isSubmitting || !newComment.trim()}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Posting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Post Comment
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -694,7 +927,9 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                           className="w-8 h-8 cursor-pointer"
                           onClick={() => onCreatorClick(comment.authorId)}
                         >
-                          <AvatarFallback className="text-xs">{comment.avatar}</AvatarFallback>
+                          <AvatarFallback className="text-xs bg-emerald-100 text-emerald-700">
+                            {comment.avatar}
+                          </AvatarFallback>
                         </Avatar>
 
                         <div className="flex-1">
@@ -720,10 +955,10 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                               variant="ghost"
                               size="sm"
                               className={`gap-1 h-7 ${commentLikes[comment.id] ? 'text-emerald-600' : 'text-slate-500'}`}
-                              onClick={() => handleCommentLike(comment.id, comment.upvotes)}
+                              onClick={() => handleCommentLike(comment.id)}
                             >
                               <ThumbsUp className="w-3 h-3" />
-                              {commentUpvotes[comment.id] ?? comment.upvotes}
+                              {commentUpvotes[comment.id] ?? 0}
                             </Button>
                             <Button
                               variant="ghost"
@@ -761,9 +996,19 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                                   size="sm"
                                   onClick={() => handleAddReply(comment.id)}
                                   className="gap-2"
+                                  disabled={isSubmitting || !replyText.trim()}
                                 >
-                                  <Send className="w-3 h-3" />
-                                  Reply
+                                  {isSubmitting ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      Replying...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send className="w-3 h-3" />
+                                      Reply
+                                    </>
+                                  )}
                                 </Button>
                               </div>
                             </div>

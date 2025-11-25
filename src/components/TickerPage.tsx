@@ -1,10 +1,12 @@
-import { ArrowLeft, TrendingUp, TrendingDown, DollarSign, TrendingUpIcon, Users } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, DollarSign, TrendingUpIcon, Users, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { BadgeCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getMassiveQuote, getMassiveTickerDetails, formatMarketCap, formatTimestamp, isMarketOpen } from '../lib/massive';
+import { toast } from 'sonner';
 
 interface TickerPageProps {
   ticker: string;
@@ -302,8 +304,64 @@ const ddPostsByTicker: Record<string, any[]> = {
 
 export function TickerPage({ ticker, onNavigateHome, onCreatorClick, onPostClick }: TickerPageProps) {
   const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'earliest'>('latest');
+  const [liveQuote, setLiveQuote] = useState<any>(null);
+  const [tickerDetails, setTickerDetails] = useState<any>(null);
+  const [isLoadingLive, setIsLoadingLive] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
   
-  const data = tickerData[ticker] || {
+  // Fetch live data from Massive.com
+  const fetchLiveData = async (showToast = false) => {
+    console.log(`🔄 Starting live data fetch for ${ticker}...`);
+    if (showToast) setIsRefreshing(true);
+    else setIsLoadingLive(true);
+
+    try {
+      const [quote, details] = await Promise.all([
+        getMassiveQuote(ticker),
+        getMassiveTickerDetails(ticker)
+      ]);
+
+      console.log('📊 Quote result:', quote);
+      console.log('🏢 Details result:', details);
+
+      if (quote) {
+        console.log('✅ Setting live quote state:', quote);
+        setLiveQuote(quote);
+        setLastUpdated(formatTimestamp(quote.timestamp));
+        if (showToast) {
+          toast.success('Live data refreshed!');
+        }
+      } else {
+        console.warn('⚠️ No quote data received, using fallback');
+        if (showToast) {
+          toast.error('Unable to fetch live data. Using fallback data.');
+        }
+      }
+
+      if (details) {
+        console.log('✅ Setting ticker details state:', details);
+        setTickerDetails(details);
+      } else {
+        console.warn('⚠️ No ticker details received');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching live data:', error);
+      if (showToast) {
+        toast.error('Failed to refresh data.');
+      }
+    } finally {
+      setIsLoadingLive(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveData();
+  }, [ticker]);
+
+  // Merge live data with mock data (for fields not yet in API)
+  const mockData = tickerData[ticker] || {
     name: `${ticker} Stock`,
     price: 100.00,
     change: 0,
@@ -317,6 +375,31 @@ export function TickerPage({ ticker, onNavigateHome, onCreatorClick, onPostClick
     bearThesis: 'No data available',
     insights: [],
   };
+
+  const data = {
+    ...mockData,
+    name: tickerDetails?.name || mockData.name,
+    price: liveQuote?.price || mockData.price,
+    change: liveQuote?.change || mockData.change,
+    changePercent: liveQuote?.changePercent || mockData.changePercent,
+    marketCap: tickerDetails?.market_cap ? formatMarketCap(tickerDetails.market_cap) : mockData.marketCap,
+    description: tickerDetails?.description || mockData.description,
+    high: liveQuote?.high,
+    low: liveQuote?.low,
+    volume: liveQuote?.volume,
+    open: liveQuote?.open,
+    previousClose: liveQuote?.previousClose,
+  };
+
+  console.log('📊 Final merged data being displayed:', {
+    ticker,
+    hasLiveQuote: !!liveQuote,
+    hasTickerDetails: !!tickerDetails,
+    price: data.price,
+    change: data.change,
+    changePercent: data.changePercent,
+    marketCap: data.marketCap
+  });
 
   const posts = ddPostsByTicker[ticker] || [];
 
@@ -342,23 +425,54 @@ export function TickerPage({ ticker, onNavigateHome, onCreatorClick, onPostClick
               Back
             </Button>
             <div className="flex-1">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-slate-900">${ticker}</h1>
                 <span className="text-slate-600">{data.name}</span>
-                {data.changePercent > 0 ? (
-                  <div className="flex items-center gap-1 text-emerald-600">
-                    <TrendingUp className="w-5 h-5" />
-                    <span>${data.price.toFixed(2)}</span>
-                    <span>(+{data.changePercent}%)</span>
+                {isLoadingLive ? (
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Loading live data...</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1 text-red-600">
-                    <TrendingDown className="w-5 h-5" />
-                    <span>${data.price.toFixed(2)}</span>
-                    <span>({data.changePercent}%)</span>
-                  </div>
+                  <>
+                    {data.changePercent > 0 ? (
+                      <div className="flex items-center gap-1 text-emerald-600 font-semibold">
+                        <TrendingUp className="w-5 h-5" />
+                        <span>${data.price.toFixed(2)}</span>
+                        <span>(+{data.changePercent.toFixed(2)}%)</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-red-600 font-semibold">
+                        <TrendingDown className="w-5 h-5" />
+                        <span>${data.price.toFixed(2)}</span>
+                        <span>({data.changePercent.toFixed(2)}%)</span>
+                      </div>
+                    )}
+                    {liveQuote && (
+                      <>
+                        <Badge variant="outline" className={isMarketOpen() ? 'border-emerald-500 text-emerald-700' : 'border-slate-400 text-slate-600'}>
+                          {isMarketOpen() ? '🟢 Market Open' : '🔴 Market Closed'}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => fetchLiveData(true)}
+                          disabled={isRefreshing}
+                          className="gap-2"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                          Refresh
+                        </Button>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
+              {lastUpdated && !isLoadingLive && (
+                <div className="text-sm text-slate-500 mt-1">
+                  Last updated: {lastUpdated}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -374,13 +488,48 @@ export function TickerPage({ ticker, onNavigateHome, onCreatorClick, onPostClick
                   <CardTitle className="flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-emerald-600" />
                     Financial Metrics
+                    {liveQuote && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        LIVE
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Live Trading Data */}
+                  {liveQuote && (
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <h4 className="text-slate-700 font-medium mb-3">Today's Trading</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-slate-500 text-sm mb-1">Open</div>
+                          <div className="text-slate-900 font-semibold">${data.open?.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-sm mb-1">Prev Close</div>
+                          <div className="text-slate-900 font-semibold">${data.previousClose?.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-sm mb-1">Day High</div>
+                          <div className="text-emerald-600 font-semibold">${data.high?.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-sm mb-1">Day Low</div>
+                          <div className="text-red-600 font-semibold">${data.low?.toFixed(2)}</div>
+                        </div>
+                        <div className="col-span-2">
+                          <div className="text-slate-500 text-sm mb-1">Volume</div>
+                          <div className="text-slate-900 font-semibold">{data.volume?.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fundamental Metrics */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-slate-500 mb-1">Market Cap</div>
-                      <div className="text-slate-900">{data.marketCap}</div>
+                      <div className="text-slate-900 font-medium">{data.marketCap}</div>
                     </div>
                     <div>
                       <div className="text-slate-500 mb-1">P/E Ratio</div>
@@ -475,6 +624,30 @@ export function TickerPage({ ticker, onNavigateHome, onCreatorClick, onPostClick
 
           {/* Main Content */}
           <main className="flex-1">
+            {/* Company Description */}
+            {tickerDetails?.description && (
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle>About {data.name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-slate-700 leading-relaxed">{tickerDetails.description}</p>
+                  {tickerDetails.homepage_url && (
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                      <a
+                        href={tickerDetails.homepage_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+                      >
+                        Visit Website →
+                      </a>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Community Sentiment and Insights */}
             <Card className="mb-6">
               <CardHeader>

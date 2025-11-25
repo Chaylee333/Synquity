@@ -22,8 +22,8 @@ interface ForumHeaderProps {
   onDiscoverClick?: () => void;
   onTrendingClick?: () => void;
   onCreatorsClick?: () => void;
-  onNewPostClick?: () => void;
-  currentPage?: 'discover' | 'trending' | 'creators';
+  onMyFeedClick?: () => void;
+  currentPage?: 'discover' | 'trending' | 'creators' | 'myfeed';
 }
 
 export function ForumHeader({
@@ -36,7 +36,7 @@ export function ForumHeader({
   onDiscoverClick,
   onTrendingClick,
   onCreatorsClick,
-  onNewPostClick,
+  onMyFeedClick,
   currentPage = 'discover'
 }: ForumHeaderProps) {
   const { user, signOut } = useAuth();
@@ -50,7 +50,7 @@ export function ForumHeader({
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           {/* Left: Logo */}
-          <div className="flex items-center gap-2 cursor-pointer">
+          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={onDiscoverClick}>
             <TrendingUp className="w-8 h-8 text-emerald-600" />
             <h1 className="text-slate-900 font-bold text-xl">Synquity</h1>
           </div>
@@ -95,11 +95,11 @@ export function ForumHeader({
             {user ? (
               <>
                 <Button
-                  variant="default"
+                  variant={currentPage === 'myfeed' ? 'default' : 'outline'}
                   className="flex"
-                  onClick={onNewPostClick}
+                  onClick={onMyFeedClick}
                 >
-                  New Post
+                  My Feed
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

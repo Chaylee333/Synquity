@@ -4,8 +4,8 @@ import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
-import { useState, useEffect } from 'react';
-import { fetchCompanies, fetchPosts } from '../lib/api';
+import { useState, useEffect, useRef } from 'react';
+import { fetchCompanies, fetchPosts, searchTickers } from '../lib/api';
 import { CreatePostModal } from './CreatePostModal';
 import {
   Select,
@@ -26,6 +26,7 @@ interface DiscoverPageProps {
   onSignupClick: () => void;
   onProfileClick: () => void;
   onSettingsClick: () => void;
+  onMyFeedClick: () => void;
 }
 
 type MasterCategory = 'Companies' | 'Investment Research' | 'Creators';
@@ -450,7 +451,8 @@ export function DiscoverPage({
   onLoginClick,
   onSignupClick,
   onProfileClick,
-  onSettingsClick
+  onSettingsClick,
+  onMyFeedClick
 }: DiscoverPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [masterCategory, setMasterCategory] = useState<MasterCategory>('Investment Research');
@@ -462,6 +464,13 @@ export function DiscoverPage({
 
   // Create Post Modal state
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+
+  // Ticker search state
+  const [tickerSearchResults, setTickerSearchResults] = useState<any[]>([]);
+  const [showTickerDropdown, setShowTickerDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch companies and posts from API
   const loadData = async () => {
@@ -480,6 +489,54 @@ export function DiscoverPage({
   useEffect(() => {
     loadData();
   }, []);
+
+  // Debounced ticker search
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (searchQuery.trim().length === 0) {
+      setTickerSearchResults([]);
+      setShowTickerDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      const results = await searchTickers(searchQuery, 10);
+      setTickerSearchResults(results);
+      setShowTickerDropdown(results.length > 0);
+      setIsSearching(false);
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowTickerDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Handle ticker click from dropdown
+  const handleTickerSelect = (ticker: string) => {
+    setSearchQuery('');
+    setShowTickerDropdown(false);
+    onTickerClick(ticker);
+  };
 
   // Companies filters
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
@@ -594,7 +651,7 @@ export function DiscoverPage({
         onDiscoverClick={() => { }} // Already on discover
         onTrendingClick={onTrendingClick}
         onCreatorsClick={onCreatorsClick}
-        onNewPostClick={() => setIsCreatePostModalOpen(true)}
+        onMyFeedClick={onMyFeedClick}
         currentPage="discover"
       />
 
@@ -607,7 +664,7 @@ export function DiscoverPage({
       {/* Search Bar */}
       <div className="bg-white border-b border-slate-200">
         <div className="container mx-auto px-4 py-6">
-          <div className="relative max-w-4xl mx-auto mb-6">
+          <div className="relative max-w-4xl mx-auto mb-6" ref={searchContainerRef}>
             <Search className="absolute left-6 top-1/2 transform -translate-y-1/2 w-6 h-6 text-slate-400" />
             <Input
               type="text"
@@ -616,6 +673,47 @@ export function DiscoverPage({
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-16 pr-6 py-8 text-xl rounded-2xl shadow-sm border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
             />
+
+            {/* Ticker Search Dropdown */}
+            {showTickerDropdown && tickerSearchResults.length > 0 && (
+              <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-96 overflow-y-auto">
+                {tickerSearchResults.map((company) => (
+                  <button
+                    key={company.ticker}
+                    onClick={() => handleTickerSelect(company.ticker)}
+                    className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 text-left"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
+                      {company.ticker.substring(0, 2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-slate-900">{company.ticker}</span>
+                        <span className="text-slate-500">·</span>
+                        <span className="text-slate-600 truncate">{company.name}</span>
+                      </div>
+                      {company.industry && (
+                        <div className="text-sm text-slate-500">{company.industry}</div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Loading indicator */}
+            {isSearching && searchQuery.trim().length > 0 && (
+              <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-50 px-6 py-4 text-center text-slate-500">
+                Searching...
+              </div>
+            )}
+
+            {/* No results indicator */}
+            {!isSearching && searchQuery.trim().length > 0 && tickerSearchResults.length === 0 && (
+              <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-50 px-6 py-4 text-center text-slate-500">
+                No tickers found
+              </div>
+            )}
           </div>
 
           {/* Horizontal Filters */}

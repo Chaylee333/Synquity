@@ -10,6 +10,7 @@ import { LoginPage } from "./components/LoginPage";
 import { SignUpPage } from "./components/SignUpPage";
 import { ProfilePage } from "./components/ProfilePage";
 import { SettingsPage } from "./components/SettingsPage";
+import { MyFeedPage } from "./components/MyFeedPage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Toaster } from 'sonner';
 
@@ -24,7 +25,8 @@ type Page =
   | { type: "login" }
   | { type: "signup" }
   | { type: "profile" }
-  | { type: "settings" };
+  | { type: "settings" }
+  | { type: "myfeed" };
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>({
@@ -86,6 +88,12 @@ function AppContent() {
     setCurrentPage({ type: "settings" });
   };
 
+  const navigateToMyFeed = () => {
+    if (isLoggedIn) {
+      setCurrentPage({ type: "myfeed" });
+    }
+  };
+
   const handleLoginSuccess = (userId: string) => {
     // State update handled by AuthContext, useEffect will redirect
   };
@@ -107,6 +115,7 @@ function AppContent() {
           onTrendingClick={navigateToTrending}
           onProfileClick={navigateToProfile}
           onSettingsClick={navigateToSettings}
+          onMyFeedClick={navigateToMyFeed}
         />
       )}
       {currentPage.type === "trending" && (
@@ -120,6 +129,7 @@ function AppContent() {
           onSignupClick={navigateToSignup}
           onProfileClick={navigateToProfile}
           onSettingsClick={navigateToSettings}
+          onMyFeedClick={navigateToMyFeed}
         />
       )}
       {currentPage.type === "creators" && (
@@ -131,6 +141,7 @@ function AppContent() {
           onSignupClick={navigateToSignup}
           onProfileClick={navigateToProfile}
           onSettingsClick={navigateToSettings}
+          onMyFeedClick={navigateToMyFeed}
         />
       )}
       {currentPage.type === "assetClassSeeAll" && (
@@ -187,6 +198,20 @@ function AppContent() {
       )}
       {currentPage.type === "settings" && (
         <SettingsPage onNavigateHome={navigateToHome} />
+      )}
+      {currentPage.type === "myfeed" && (
+        <MyFeedPage
+          onNavigateHome={navigateToHome}
+          onTickerClick={navigateToTicker}
+          onPostClick={navigateToPost}
+          onCreatorClick={navigateToCreator}
+          onTrendingClick={navigateToTrending}
+          onCreatorsClick={navigateToCreators}
+          onLoginClick={navigateToLogin}
+          onSignupClick={navigateToSignup}
+          onProfileClick={navigateToProfile}
+          onSettingsClick={navigateToSettings}
+        />
       )}
       <Toaster />
     </div>

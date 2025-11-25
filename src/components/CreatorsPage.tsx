@@ -14,6 +14,7 @@ interface CreatorsPageProps {
   onSignupClick: () => void;
   onProfileClick: () => void;
   onSettingsClick: () => void;
+  onMyFeedClick: () => void;
 }
 
 type RankingMode = 'risk-adjusted' | 'absolute';
@@ -330,7 +331,8 @@ export function CreatorsPage({
   onLoginClick,
   onSignupClick,
   onProfileClick,
-  onSettingsClick
+  onSettingsClick,
+  onMyFeedClick
 }: CreatorsPageProps) {
   const [rankingMode, setRankingMode] = useState<RankingMode>('risk-adjusted');
   const [searchQuery, setSearchQuery] = useState('');
@@ -359,6 +361,7 @@ export function CreatorsPage({
         onDiscoverClick={onNavigateHome}
         onTrendingClick={onTrendingClick}
         onCreatorsClick={() => { }} // Already on creators
+        onMyFeedClick={onMyFeedClick}
         currentPage="creators"
       />
 
