@@ -144,3 +144,4 @@ echo ".env" >> .gitignore
 
 Your database now has ticker data and users can search for companies!
 
+

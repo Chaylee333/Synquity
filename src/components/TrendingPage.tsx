@@ -17,7 +17,6 @@ interface TrendingPageProps {
   onSignupClick: () => void;
   onProfileClick: () => void;
   onSettingsClick: () => void;
-  onMyFeedClick: () => void;
 }
 
 export function TrendingPage({
@@ -30,8 +29,7 @@ export function TrendingPage({
   onLoginClick,
   onSignupClick,
   onProfileClick,
-  onSettingsClick,
-  onMyFeedClick
+  onSettingsClick
 }: TrendingPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -47,7 +45,6 @@ export function TrendingPage({
         onDiscoverClick={onNavigateHome}
         onTrendingClick={() => { }} // Already on trending
         onCreatorsClick={onCreatorsClick}
-        onMyFeedClick={onMyFeedClick}
         currentPage="trending"
       />
 

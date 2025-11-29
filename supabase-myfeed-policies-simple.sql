@@ -145,3 +145,4 @@ CREATE INDEX IF NOT EXISTS idx_post_likes_post_id ON public.post_likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_comment_likes_comment_id ON public.comment_likes(comment_id);
 CREATE INDEX IF NOT EXISTS idx_creator_metrics_user_id ON public.creator_performance_metrics(user_id);
 
+

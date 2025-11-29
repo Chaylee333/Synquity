@@ -306,3 +306,4 @@ BEGIN
   RAISE NOTICE '  ✓ Performance indexes created for faster queries';
 END $$;
 
+

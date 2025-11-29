@@ -247,3 +247,4 @@ For any issues, check the Supabase logs:
 2. Click **Database** → **Logs**
 3. Look for any RLS policy errors
 
+

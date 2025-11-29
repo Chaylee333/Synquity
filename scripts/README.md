@@ -157,3 +157,4 @@ Search for a ticker:
 SELECT * FROM companies WHERE ticker ILIKE '%TSLA%' OR name ILIKE '%Tesla%';
 ```
 
+
