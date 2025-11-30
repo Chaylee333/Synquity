@@ -1,0 +1,34 @@
+name: Update Post Performance Daily
+
+on:
+  schedule:
+    # Run at 9 PM UTC (4 PM ET) on weekdays (Mon-Fri)
+    - cron: '0 21 * * 1-5'
+  workflow_dispatch: # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  update-performance:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Update Post Performance
+        run: |
+          echo "🔄 Triggering post performance update..."
+          
+          RESPONSE=$(curl -s -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/update_post_performance" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Content-Type: application/json")
+          
+          echo "Response: $RESPONSE"
+          
+          if [ "$RESPONSE" = "null" ] || [ -z "$RESPONSE" ]; then
+            echo "✅ Post performance update completed successfully!"
+          else
+            echo "⚠️ Response received: $RESPONSE"
+          fi
+
+      - name: Log completion
+        run: |
+          echo "✅ Daily post performance update completed at $(date -u)"
+
