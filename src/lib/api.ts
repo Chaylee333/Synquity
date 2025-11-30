@@ -770,3 +770,188 @@ export async function voteTickerSentiment(ticker: string, sentiment: 'bullish' |
         throw error;
     }
 }
+
+// ============================================
+// PROFILE MANAGEMENT
+// ============================================
+
+export async function uploadAvatar(file: File): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+
+    // Create a unique file name
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+        });
+
+    if (uploadError) {
+        console.error('Error uploading avatar:', uploadError);
+        throw new Error(`Failed to upload avatar: ${uploadError.message}`);
+    }
+
+    // Get the public URL
+    const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+    // Update the profile with the new avatar URL
+    await updateProfile({ avatar_url: publicUrl });
+
+    // Also update auth user metadata
+    await supabase.auth.updateUser({
+        data: { avatar_url: publicUrl }
+    });
+
+    return publicUrl;
+}
+
+export async function updateProfile(profileData: {
+    username?: string;
+    full_name?: string;
+    bio?: string;
+    website?: string;
+    location?: string;
+    avatar_url?: string;
+}) {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+
+    // Update profiles table
+    const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+            ...profileData,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+    if (profileError) {
+        console.error('Error updating profile:', profileError);
+        throw new Error(`Failed to update profile: ${profileError.message}`);
+    }
+
+    // Also update auth user metadata for username and full_name
+    if (profileData.username || profileData.full_name) {
+        const { error: authError } = await supabase.auth.updateUser({
+            data: {
+                ...(profileData.username && { username: profileData.username }),
+                ...(profileData.full_name && { full_name: profileData.full_name }),
+            }
+        });
+
+        if (authError) {
+            console.error('Error updating auth metadata:', authError);
+            // Don't throw here, profile was already updated
+        }
+    }
+
+    return true;
+}
+
+export async function fetchUserProfile(userId: string) {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+    if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+    }
+
+    return data;
+}
+
+// ============================================
+// USER SETTINGS
+// ============================================
+
+export async function fetchUserSettings() {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+
+    const { data, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        console.error('Error fetching user settings:', error);
+        throw error;
+    }
+
+    // Return default settings if none exist
+    if (!data) {
+        return {
+            email_notifications: true,
+            new_followers_notifications: true,
+            post_interactions_notifications: true,
+        };
+    }
+
+    return data;
+}
+
+export async function updateUserSettings(settings: {
+    email_notifications?: boolean;
+    new_followers_notifications?: boolean;
+    post_interactions_notifications?: boolean;
+}) {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+
+    // Upsert settings (insert if not exists, update if exists)
+    const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+            user_id: user.id,
+            ...settings,
+            updated_at: new Date().toISOString(),
+        });
+
+    if (error) {
+        console.error('Error updating user settings:', error);
+        throw new Error(`Failed to update settings: ${error.message}`);
+    }
+
+    return true;
+}
+
+// ============================================
+// PASSWORD MANAGEMENT
+// ============================================
+
+export async function updatePassword(newPassword: string) {
+    const { error } = await supabase.auth.updateUser({
+        password: newPassword
+    });
+
+    if (error) {
+        console.error('Error updating password:', error);
+        throw new Error(`Failed to update password: ${error.message}`);
+    }
+
+    return true;
+}

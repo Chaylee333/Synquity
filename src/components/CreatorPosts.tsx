@@ -2,7 +2,7 @@ import { FileText, ThumbsUp, MessageSquare, TrendingUp, TrendingDown, BadgeCheck
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { useState } from 'react';
 
 interface CreatorPostsProps {
@@ -224,7 +224,10 @@ export function CreatorPosts({ creatorId, onTickerClick, onPostClick, newPosts =
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <Avatar className="w-8 h-8">
-                      <AvatarFallback>{post.avatar}</AvatarFallback>
+                      <AvatarImage src={post.authorAvatar} />
+                      <AvatarFallback className="bg-emerald-500 text-white">
+                        {post.author?.charAt(0).toUpperCase() || 'U'}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-900">{post.author}</span>

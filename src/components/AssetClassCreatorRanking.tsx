@@ -1,6 +1,6 @@
 import { Award, TrendingUp, BadgeCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useRef } from 'react';
@@ -508,7 +508,10 @@ export function AssetClassCreatorRanking({ assetClass, onCreatorClick, onSeeAllC
 
                 <div className="flex items-center gap-3 mb-3">
                   <Avatar className="w-12 h-12">
-                    <AvatarFallback>{creator.avatar}</AvatarFallback>
+                    <AvatarImage src={creator.avatar_url} />
+                    <AvatarFallback className="bg-emerald-500 text-white">
+                      {creator.username?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1 mb-1">

@@ -2,7 +2,7 @@ import { ArrowLeft, TrendingUp, TrendingDown, DollarSign, TrendingUpIcon, Users,
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { BadgeCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getMassiveQuote, getMassiveTickerDetails, formatMarketCap, formatTimestamp, isMarketOpen } from '../lib/massive';
@@ -764,7 +764,10 @@ export function TickerPage({ ticker, onNavigateHome, onCreatorClick, onPostClick
                             }}
                           >
                             <Avatar className="w-8 h-8">
-                              <AvatarFallback>{post.avatar}</AvatarFallback>
+                              <AvatarImage src={post.authorAvatar} />
+                              <AvatarFallback className="bg-emerald-500 text-white">
+                                {post.author?.charAt(0).toUpperCase() || 'U'}
+                              </AvatarFallback>
                             </Avatar>
                             <div className="flex items-center gap-2">
                               <span className="text-slate-900">{post.author}</span>

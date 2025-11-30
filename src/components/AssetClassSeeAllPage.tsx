@@ -1,7 +1,7 @@
 import { TrendingUp, Award, BadgeCheck, TrendingDown, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 
 interface AssetClassSeeAllPageProps {
@@ -538,7 +538,10 @@ export function AssetClassSeeAllPage({
 
                 <div className="flex items-center gap-3 mb-4">
                   <Avatar className="w-16 h-16">
-                    <AvatarFallback>{creator.avatar}</AvatarFallback>
+                    <AvatarImage src={creator.avatar_url} />
+                    <AvatarFallback className="bg-emerald-500 text-white text-lg">
+                      {creator.username?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">

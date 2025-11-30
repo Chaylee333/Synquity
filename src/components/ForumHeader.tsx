@@ -1,4 +1,5 @@
-import { Search, TrendingUp, LogOut, User, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, LogOut, User, Settings } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { SynquityLogo } from './SynquityLogo';
+import { fetchUserProfile } from '../lib/api';
 
 interface ForumHeaderProps {
   searchQuery: string;
@@ -40,9 +43,29 @@ export function ForumHeader({
   currentPage = 'discover'
 }: ForumHeaderProps) {
   const { user, signOut } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+
+  // Fetch profile to get avatar_url
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile(user.id).then(setProfile).catch(console.error);
+    }
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
+  };
+
+  // Get the avatar URL from profile or user metadata
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url;
+  
+  // Get display name for initials
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || '';
+  
+  // Get first initial only
+  const getInitial = (name: string) => {
+    if (!name) return 'U';
+    return name.trim().charAt(0).toUpperCase();
   };
 
   return (
@@ -50,9 +73,11 @@ export function ForumHeader({
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           {/* Left: Logo */}
-          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={onDiscoverClick}>
-            <TrendingUp className="w-8 h-8 text-emerald-600" />
-            <h1 className="text-slate-900 font-bold text-xl">Synquity</h1>
+          <div 
+            className="flex items-center cursor-pointer hover:opacity-80 transition-opacity" 
+            onClick={onDiscoverClick}
+          >
+            <SynquityLogo height={28} />
           </div>
 
           {/* Center: Navigation Buttons */}
@@ -104,9 +129,9 @@ export function ForumHeader({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Avatar className="cursor-pointer hover:opacity-80 transition-opacity">
-                      <AvatarImage src={user.user_metadata.avatar_url} />
-                      <AvatarFallback>
-                        {user.user_metadata.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                      <AvatarImage src={avatarUrl} />
+                      <AvatarFallback className="bg-emerald-500 text-white">
+                        {getInitial(displayName)}
                       </AvatarFallback>
                     </Avatar>
                   </DropdownMenuTrigger>

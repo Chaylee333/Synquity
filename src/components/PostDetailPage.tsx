@@ -3,7 +3,7 @@ import { ArrowLeft, ThumbsUp, MessageSquare, BadgeCheck, Send, TrendingUp, Trend
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
 import {
@@ -646,8 +646,9 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
               className="w-7 h-7 cursor-pointer"
               onClick={() => onCreatorClick(reply.authorId)}
             >
-              <AvatarFallback className="text-xs bg-emerald-100 text-emerald-700">
-                {reply.avatar}
+              <AvatarImage src={reply.authorAvatar} />
+              <AvatarFallback className="text-xs bg-emerald-500 text-white">
+                {reply.author?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
 
@@ -845,8 +846,9 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                   onClick={() => onCreatorClick(post.author_id)}
                 >
                   <Avatar className="w-10 h-10">
-                    <AvatarFallback>
-                      {post.profiles?.username?.substring(0, 2).toUpperCase() || 'AN'}
+                    <AvatarImage src={post.profiles?.avatar_url} />
+                    <AvatarFallback className="bg-emerald-500 text-white">
+                      {(post.profiles?.username || post.profiles?.full_name || 'U')?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -936,8 +938,9 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                           className="w-8 h-8 cursor-pointer"
                           onClick={() => onCreatorClick(comment.authorId)}
                         >
-                          <AvatarFallback className="text-xs bg-emerald-100 text-emerald-700">
-                            {comment.avatar}
+                          <AvatarImage src={comment.authorAvatar} />
+                          <AvatarFallback className="text-xs bg-emerald-500 text-white">
+                            {comment.author?.charAt(0).toUpperCase() || 'U'}
                           </AvatarFallback>
                         </Avatar>
 

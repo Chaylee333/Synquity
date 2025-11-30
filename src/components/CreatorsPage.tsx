@@ -1,10 +1,18 @@
-import { TrendingUp, Users, TrendingDown, BadgeCheck, Target, Award } from 'lucide-react';
-import { Button } from './ui/button';
+import { TrendingUp, Users, BadgeCheck } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { useState } from 'react';
 import { ForumHeader } from './ForumHeader';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+
+type SortOption = 'followers' | 'pnl-annualized' | 'pnl-since-joining' | 'sharpe-ratio';
 
 interface CreatorsPageProps {
   onNavigateHome: () => void;
@@ -16,8 +24,6 @@ interface CreatorsPageProps {
   onSettingsClick: () => void;
   onMyFeedClick: () => void;
 }
-
-type RankingMode = 'risk-adjusted' | 'absolute';
 
 const creatorsData = [
   {
@@ -334,17 +340,22 @@ export function CreatorsPage({
   onSettingsClick,
   onMyFeedClick
 }: CreatorsPageProps) {
-  const [rankingMode, setRankingMode] = useState<RankingMode>('risk-adjusted');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('followers');
 
-  // Sort creators based on ranking mode
+  // Sort creators based on selected option
   const sortedCreators = [...creatorsData].sort((a, b) => {
-    if (rankingMode === 'risk-adjusted') {
-      // Sort by Sharpe Ratio (higher is better)
-      return b.sharpeRatio - a.sharpeRatio;
-    } else {
-      // Sort by absolute P&L dollars (higher is better)
-      return b.pnlAbsoluteDollars - a.pnlAbsoluteDollars;
+    switch (sortBy) {
+      case 'followers':
+        return b.followers - a.followers;
+      case 'pnl-annualized':
+        return b.pnlAnnualizedPercent - a.pnlAnnualizedPercent;
+      case 'pnl-since-joining':
+        return b.pnlSinceJoiningPercent - a.pnlSinceJoiningPercent;
+      case 'sharpe-ratio':
+        return b.sharpeRatio - a.sharpeRatio;
+      default:
+        return b.followers - a.followers;
     }
   });
 
@@ -373,24 +384,24 @@ export function CreatorsPage({
             <h2 className="text-slate-900">Top Content Creators</h2>
           </div>
           <p className="text-slate-600">
-            Discover the best performing content creators based on their trading performance
+            Discover the best performing content creators
           </p>
         </div>
 
-        {/* Toggle Buttons */}
-        <div className="mb-6 flex gap-3">
-          <Button
-            variant={rankingMode === 'risk-adjusted' ? 'default' : 'outline'}
-            onClick={() => setRankingMode('risk-adjusted')}
-          >
-            Risk-Adjusted Returns
-          </Button>
-          <Button
-            variant={rankingMode === 'absolute' ? 'default' : 'outline'}
-            onClick={() => setRankingMode('absolute')}
-          >
-            Absolute Returns (Annualized)
-          </Button>
+        {/* Sort Filter */}
+        <div className="mb-6 flex items-center gap-3">
+          <span className="text-slate-600">Sort by:</span>
+          <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="followers">Followers</SelectItem>
+              <SelectItem value="pnl-annualized">P&L % (Annualized)</SelectItem>
+              <SelectItem value="pnl-since-joining">P&L % Since Joining</SelectItem>
+              <SelectItem value="sharpe-ratio">Sharpe Ratio</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Ranking Table */}
@@ -401,19 +412,10 @@ export function CreatorsPage({
               <div className="grid grid-cols-12 gap-4 items-center">
                 <div className="col-span-1 text-slate-600">Rank</div>
                 <div className="col-span-4 text-slate-600">Creator</div>
-                {rankingMode === 'risk-adjusted' ? (
-                  <>
-                    <div className="col-span-2 text-slate-600 text-right">P&L % (Annualized)</div>
-                    <div className="col-span-2 text-slate-600 text-right">P&L % Since Joining</div>
-                    <div className="col-span-2 text-slate-600 text-right">Sharpe Ratio</div>
-                    <div className="col-span-1 text-slate-600 text-right">Average Drawdown %</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="col-span-3 text-slate-600 text-right">P&L % (Annualized)</div>
-                    <div className="col-span-4 text-slate-600 text-right">P&L ($)</div>
-                  </>
-                )}
+                <div className="col-span-2 text-slate-600 text-right">P&L % (Annualized)</div>
+                <div className="col-span-2 text-slate-600 text-right">P&L % Since Joining</div>
+                <div className="col-span-2 text-slate-600 text-right">Sharpe Ratio</div>
+                <div className="col-span-1 text-slate-600 text-right">Followers</div>
               </div>
             </div>
 
@@ -441,8 +443,9 @@ export function CreatorsPage({
                     <div className="col-span-4">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-12 h-12">
-                          <AvatarFallback className="bg-emerald-100 text-emerald-700">
-                            {creator.avatar}
+                          <AvatarImage src={creator.avatar_url} />
+                          <AvatarFallback className="bg-emerald-500 text-white">
+                            {creator.username?.charAt(0).toUpperCase() || 'U'}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
@@ -461,9 +464,7 @@ export function CreatorsPage({
                       </div>
                     </div>
 
-                    {/* Metrics based on mode */}
-                    {rankingMode === 'risk-adjusted' ? (
-                      <>
+                    {/* Metrics - single format */}
                         {/* P&L % (Annualized) */}
                         <div className="col-span-2 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -498,36 +499,12 @@ export function CreatorsPage({
                           </Badge>
                         </div>
 
-                        {/* Max Drawdown */}
+                        {/* Followers */}
                         <div className="col-span-1 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <TrendingDown className="w-4 h-4 text-red-600" />
-                            <span className="text-red-600">
-                              {creator.avgDrawdownPercent.toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        {/* P&L % (Annualized) */}
-                        <div className="col-span-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <TrendingUp className="w-4 h-4 text-emerald-600" />
-                            <span className="text-emerald-600">
-                              +{creator.pnlAnnualizedPercent.toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* P&L ($) */}
-                        <div className="col-span-4 text-right">
-                          <span className="text-emerald-600">
-                            ${creator.pnlAbsoluteDollars.toLocaleString()}
+                          <span className="text-slate-600">
+                            {(creator.followers / 1000).toFixed(1)}K
                           </span>
                         </div>
-                      </>
-                    )}
                   </div>
                 </div>
               ))}

@@ -1,8 +1,8 @@
-import { TrendingUp, Search, Filter, BadgeCheck, TrendingDown, Target, Award, Building2, Users } from 'lucide-react';
+import { TrendingUp, Search, Filter, BadgeCheck, TrendingDown, Target, Award, Building2, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { useState, useEffect, useRef } from 'react';
 import { fetchCompanies, fetchPosts, searchTickers } from '../lib/api';
@@ -462,6 +462,10 @@ export function DiscoverPage({
   const [apiPosts, setApiPosts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Create Post Modal state
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
@@ -540,15 +544,18 @@ export function DiscoverPage({
 
   // Companies filters
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
-  const [selectedMarketCap, setSelectedMarketCap] = useState<string>('all');
 
   // Investment Research filters
   const [selectedMarket, setSelectedMarket] = useState<string>('all');
   const [selectedTimeHorizon, setSelectedTimeHorizon] = useState<string>('all');
-  const [selectedRiskProfile, setSelectedRiskProfile] = useState<string>('all');
 
   // Creators filters
-  const [creatorSortBy, setCreatorSortBy] = useState<string>('risk-adjusted');
+  const [creatorSortBy, setCreatorSortBy] = useState<string>('annualized');
+
+  // Reset to page 1 when changing categories or filters
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [masterCategory, selectedIndustry, selectedMarket, selectedTimeHorizon, creatorSortBy]);
 
   // Filter companies from API data
   const filteredCompanies = apiCompanies
@@ -579,7 +586,6 @@ export function DiscoverPage({
     .filter(post => {
       if (selectedMarket !== 'all' && post.market !== selectedMarket) return false;
       if (selectedTimeHorizon !== 'all' && post.time_horizon !== selectedTimeHorizon) return false;
-      if (selectedRiskProfile !== 'all' && post.risk_profile !== selectedRiskProfile) return false;
       return true;
     })
     .map(post => ({
@@ -609,21 +615,21 @@ export function DiscoverPage({
 
   // Sort creators
   const sortedCreators = [...creators].sort((a, b) => {
-    if (creatorSortBy === 'risk-adjusted') {
-      return b.sharpeRatio - a.sharpeRatio;
-    } else if (creatorSortBy === 'absolute') {
+    if (creatorSortBy === 'annualized') {
       return b.pnlAnnualizedPercent - a.pnlAnnualizedPercent;
-    } else if (creatorSortBy === 'trending') {
-      return b.followers - a.followers;
+    } else if (creatorSortBy === 'since-joining') {
+      return b.pnlSinceJoiningPercent - a.pnlSinceJoiningPercent;
     }
     return 0;
   });
 
   const industries = ['Technology', 'Financial Services', 'Healthcare', 'Consumer', 'Industrial', 'Materials', 'Energy', 'Real Estate', 'Automotive'];
-  const marketCaps = ['Large', 'Mid', 'Small', 'Micro'];
   const markets = ['Equities', 'Crypto', 'Commodities', 'Fixed Income', 'Real Estate', 'FX'];
-  const timeHorizons = ['Short', 'Medium', 'Long'];
-  const riskProfiles = ['Low', 'Moderate', 'High'];
+  const timeHorizons = [
+    { value: 'Short', label: 'Short Term' },
+    { value: 'Medium', label: 'Medium Term' },
+    { value: 'Long', label: 'Long Term' }
+  ];
 
   const getTitle = () => {
     if (masterCategory === 'Companies') return 'Companies';
@@ -638,6 +644,42 @@ export function DiscoverPage({
     if (masterCategory === 'Creators') return sortedCreators.length;
     return 0;
   };
+
+  // Pagination helper functions
+  const getCurrentPageData = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+
+    if (masterCategory === 'Companies') {
+      return filteredCompanies.slice(startIndex, endIndex);
+    } else if (masterCategory === 'Investment Research') {
+      return filteredPosts.slice(startIndex, endIndex);
+    } else if (masterCategory === 'Creators') {
+      return sortedCreators.slice(startIndex, endIndex);
+    }
+    return [];
+  };
+
+  const getTotalPages = () => {
+    const totalItems = getResultCount();
+    return Math.ceil(totalItems / itemsPerPage);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < getTotalPages()) {
+      setCurrentPage(currentPage + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const paginatedData = getCurrentPageData();
 
   return (
     <>
@@ -755,18 +797,6 @@ export function DiscoverPage({
                       ))}
                     </SelectContent>
                   </Select>
-
-                  <Select value={selectedMarketCap} onValueChange={setSelectedMarketCap}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Market Capitalization" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Market Caps</SelectItem>
-                      {marketCaps.map(cap => (
-                        <SelectItem key={cap} value={cap}>{cap} Cap</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </>
               )}
 
@@ -791,19 +821,7 @@ export function DiscoverPage({
                     <SelectContent>
                       <SelectItem value="all">All Time Horizons</SelectItem>
                       {timeHorizons.map(horizon => (
-                        <SelectItem key={horizon} value={horizon}>{horizon}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={selectedRiskProfile} onValueChange={setSelectedRiskProfile}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Risk Profile" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Risk Profiles</SelectItem>
-                      {riskProfiles.map(profile => (
-                        <SelectItem key={profile} value={profile}>{profile}</SelectItem>
+                        <SelectItem key={horizon.value} value={horizon.value}>{horizon.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -816,9 +834,8 @@ export function DiscoverPage({
                     <SelectValue placeholder="Sort By" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="risk-adjusted">Sorted by Risk-Adjusted P&L</SelectItem>
-                    <SelectItem value="absolute">Sorted by Absolute P&L</SelectItem>
-                    <SelectItem value="trending">Trending</SelectItem>
+                    <SelectItem value="annualized">P&L % (Annualized)</SelectItem>
+                    <SelectItem value="since-joining">P&L % Since Joining</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -834,12 +851,17 @@ export function DiscoverPage({
             <h2 className="text-slate-900 mb-1">{getTitle()}</h2>
             <p className="text-slate-600">
               {getResultCount()} {getResultCount() === 1 ? 'result' : 'results'} found
+              {getTotalPages() > 1 && (
+                <span className="ml-2">
+                  • Page {currentPage} of {getTotalPages()}
+                </span>
+              )}
             </p>
           </div>
 
           <div className="space-y-4">
             {/* Companies View */}
-            {masterCategory === 'Companies' && filteredCompanies.map(company => (
+            {masterCategory === 'Companies' && paginatedData.map((company: any) => (
               <Card
                 key={company.ticker}
                 className="hover:shadow-md transition-shadow cursor-pointer"
@@ -900,116 +922,81 @@ export function DiscoverPage({
             ))}
 
             {/* Investment Research View */}
-            {masterCategory === 'Investment Research' && filteredPosts.map(post => (
+            {masterCategory === 'Investment Research' && paginatedData.map((post: any) => (
               <Card key={post.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => onPostClick(post.id)}>
                 <CardContent className="p-6">
-                  <div className="flex gap-4">
-                    {/* Creator Info */}
-                    <div className="flex-shrink-0">
-                      <Avatar className="w-12 h-12 cursor-pointer" onClick={(e) => {
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge 
+                      variant="secondary" 
+                      className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                      onClick={(e) => {
                         e.stopPropagation();
-                        onCreatorClick(post.authorId);
-                      }}>
-                        <AvatarFallback className="bg-emerald-100 text-emerald-700">
-                          {post.avatar}
-                        </AvatarFallback>
-                      </Avatar>
+                        onTickerClick(post.ticker);
+                      }}
+                    >
+                      ${post.ticker}
+                    </Badge>
+                    <Badge 
+                      variant="outline"
+                      className={
+                        post.sentiment === 'bullish'
+                          ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
+                          : post.sentiment === 'bearish'
+                          ? 'border-red-200 text-red-700 bg-red-50'
+                          : 'border-slate-200 text-slate-700'
+                      }
+                    >
+                      {post.sentiment}
+                    </Badge>
+                  </div>
+
+                  <h3 className="text-slate-900 mb-2">
+                    {post.title}
+                  </h3>
+
+                  <p className="text-slate-600 mb-3 line-clamp-2">
+                    {post.summary}
+                  </p>
+
+                  {/* Stock Performance Since Post */}
+                  <div className="mb-3 p-2 bg-slate-50 rounded flex items-center justify-between w-fit max-w-[200px]">
+                    <span className="text-slate-600 text-sm">Since posted:</span>
+                    <div className={`flex items-center gap-1 ml-2 ${
+                      post.stockPerformance >= 0 ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {post.stockPerformance >= 0 ? (
+                        <TrendingUp className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
+                      <span>{post.stockPerformance >= 0 ? '+' : ''}{post.stockPerformance}%</span>
                     </div>
+                  </div>
 
-                    {/* Post Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4 mb-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className="text-slate-900 hover:text-emerald-600 cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onCreatorClick(post.authorId);
-                            }}
-                          >
-                            {post.author}
-                          </span>
-                          {post.verified && (
-                            <BadgeCheck className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                          )}
-                          <span className="text-slate-500">•</span>
-                          <span className="text-slate-500">{post.timestamp}</span>
-                        </div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar className="w-6 h-6 cursor-pointer" onClick={(e) => {
+                      e.stopPropagation();
+                      onCreatorClick(post.authorId);
+                    }}>
+                      <AvatarImage src={post.authorAvatar} />
+                      <AvatarFallback className="text-xs bg-emerald-500 text-white">
+                        {post.author?.charAt(0).toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-slate-700">{post.author}</span>
+                    {post.verified && (
+                      <BadgeCheck className="w-4 h-4 text-blue-600" />
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="text-sm">{post.timestamp}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        👍 <span>{post.likes}</span>
                       </div>
-
-                      <h3
-                        className="text-slate-900 mb-2 hover:text-emerald-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPostClick(post.id);
-                        }}
-                      >
-                        {post.title}
-                      </h3>
-
-                      <p className="text-slate-600 mb-3 line-clamp-2">
-                        {post.summary}
-                      </p>
-
-                      {/* Metadata */}
-                      <div className="flex items-center gap-3 mb-3 flex-wrap">
-                        <Badge
-                          variant="secondary"
-                          className="cursor-pointer hover:bg-emerald-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onTickerClick(post.ticker);
-                          }}
-                        >
-                          ${post.ticker}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={
-                            post.sentiment === 'bullish'
-                              ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                              : post.sentiment === 'bearish'
-                                ? 'border-red-200 text-red-700 bg-red-50'
-                                : 'border-slate-200 text-slate-700 bg-slate-50'
-                          }
-                        >
-                          {post.sentiment.charAt(0).toUpperCase() + post.sentiment.slice(1)}
-                        </Badge>
-                        <div className="flex items-center gap-1 text-slate-600">
-                          {post.stockPerformance >= 0 ? (
-                            <TrendingUp className="w-4 h-4 text-emerald-600" />
-                          ) : (
-                            <TrendingDown className="w-4 h-4 text-red-600" />
-                          )}
-                          <span className={post.stockPerformance >= 0 ? 'text-emerald-600' : 'text-red-600'}>
-                            {post.stockPerformance >= 0 ? '+' : ''}{post.stockPerformance}%
-                          </span>
-                          <span className="text-slate-500 ml-1">since post</span>
-                        </div>
-                      </div>
-
-                      {/* Creator Stats */}
-                      <div className="flex items-center gap-4 text-slate-600 mb-3">
-                        <div className="flex items-center gap-1">
-                          <Target className="w-4 h-4" />
-                          <span>{post.credibilityScore}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Award className="w-4 h-4" />
-                          <span>{post.winRate}% Win Rate</span>
-                        </div>
-                        <span>•</span>
-                        <span>{post.followers.toLocaleString()} followers</span>
-                      </div>
-
-                      {/* Engagement */}
-                      <div className="flex items-center gap-4 text-slate-500">
-                        <button className="hover:text-emerald-600 transition-colors">
-                          👍 {post.likes}
-                        </button>
-                        <button className="hover:text-emerald-600 transition-colors">
-                          💬 {post.comments}
-                        </button>
+                      <div className="flex items-center gap-1">
+                        💬 <span>{post.comments}</span>
                       </div>
                     </div>
                   </div>
@@ -1018,7 +1005,9 @@ export function DiscoverPage({
             ))}
 
             {/* Creators View */}
-            {masterCategory === 'Creators' && sortedCreators.map((creator, index) => (
+            {masterCategory === 'Creators' && paginatedData.map((creator: any, index: number) => {
+              const actualIndex = (currentPage - 1) * itemsPerPage + index; // Calculate actual index across all pages
+              return (
               <Card
                 key={creator.id}
                 className="hover:shadow-md transition-shadow cursor-pointer"
@@ -1029,8 +1018,9 @@ export function DiscoverPage({
                     {/* Creator Avatar */}
                     <div className="flex-shrink-0">
                       <Avatar className="w-16 h-16">
-                        <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg">
-                          {creator.avatar}
+                        <AvatarImage src={creator.avatar_url} />
+                        <AvatarFallback className="bg-emerald-500 text-white text-lg">
+                          {creator.name?.charAt(0).toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
                     </div>
@@ -1054,12 +1044,12 @@ export function DiscoverPage({
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${index === 0 ? 'bg-amber-100 text-amber-700' :
-                            index === 1 ? 'bg-slate-200 text-slate-700' :
-                              index === 2 ? 'bg-orange-100 text-orange-700' :
+                          <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${actualIndex === 0 ? 'bg-amber-100 text-amber-700' :
+                            actualIndex === 1 ? 'bg-slate-200 text-slate-700' :
+                              actualIndex === 2 ? 'bg-orange-100 text-orange-700' :
                                 'bg-slate-100 text-slate-600'
                             }`}>
-                            {index + 1}
+                            {actualIndex + 1}
                           </div>
                         </div>
                       </div>
@@ -1091,8 +1081,40 @@ export function DiscoverPage({
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            );
+            })}
           </div>
+
+          {/* Pagination Controls */}
+          {getTotalPages() > 1 && (
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-200">
+              <Button
+                variant="outline"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="flex items-center gap-2"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </Button>
+              
+              <div className="flex items-center gap-2 text-slate-600">
+                <span>
+                  Page {currentPage} of {getTotalPages()}
+                </span>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={handleNextPage}
+                disabled={currentPage === getTotalPages()}
+                className="flex items-center gap-2"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </>

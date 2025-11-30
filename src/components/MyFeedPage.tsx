@@ -1,6 +1,5 @@
-```javascript
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, BadgeCheck, MessageCircle, ThumbsUp, Bold, Italic, List, Type, AlignLeft, AlignCenter, AlignRight, Link as LinkIcon, Image as ImageIcon, Check, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, BadgeCheck, MessageCircle, ThumbsUp } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -20,7 +19,10 @@ import { PerformanceMetricsCard } from './PerformanceMetricsCard';
 import { useAuth } from '../contexts/AuthContext';
 import { createPost, fetchUserPosts, fetchUserComments, fetchUserPerformanceMetrics, fetchUserFollowCounts, fetchCreatorProfile, searchTickers } from '../lib/api';
 import { toast } from 'sonner';
-import { RichTextEditor, RichTextEditorRef, htmlToMarkdown } from './ui/rich-text-editor';
+import { Editor } from 'react-draft-wysiwyg';
+import { EditorState, convertToRaw } from 'draft-js';
+import draftToHtml from 'draftjs-to-html';
+import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
 
 interface MyFeedPageProps {
   onNavigateHome: () => void;
@@ -60,12 +62,10 @@ export function MyFeedPage({
   const [sortBy, setSortBy] = useState<'latest' | 'ranking'>('ranking');
   const [tickerSuggestions, setTickerSuggestions] = useState<any[]>([]);
   const [showTickerSuggestions, setShowTickerSuggestions] = useState(false);
-  const [showLinkInput, setShowLinkInput] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
 
   // Post creation state
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  const [editorState, setEditorState] = useState(() => EditorState.createEmpty());
   const [ticker, setTicker] = useState('');
   const [category, setCategory] = useState('DD');
   const [sentiment, setSentiment] = useState<'bullish' | 'bearish' | 'neutral'>('neutral');
@@ -73,12 +73,6 @@ export function MyFeedPage({
   const [timeHorizon, setTimeHorizon] = useState('Medium');
   const [riskProfile, setRiskProfile] = useState('Moderate');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const editorRef = useRef<RichTextEditorRef>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFormat = (command: string, value?: string) => {
-    editorRef.current?.execCommand(command, value);
-  };
 
   useEffect(() => {
     if (user) {
@@ -99,7 +93,6 @@ export function MyFeedPage({
       setUserPosts(posts);
       setPostsCount(posts.length);
       setCommentsCount(comments.length);
-      setCommentsCount(comments.length);
 
       // Merge profile reputation into metrics
       const enhancedMetrics = {
@@ -108,7 +101,6 @@ export function MyFeedPage({
       };
       setPerformanceMetrics(enhancedMetrics);
 
-      setFollowersCount(followCounts.followers);
       setFollowersCount(followCounts.followers);
       setFollowingCount(followCounts.following);
       setUserProfile(profile);
@@ -120,31 +112,27 @@ export function MyFeedPage({
     }
   };
 
-  const handleImageUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      // Insert image using execCommand
-      editorRef.current?.execCommand('insertImage', imageUrl);
-      editorRef.current?.focus();
-      // Reset the input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
   const handleSubmitPost = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Convert HTML content to Markdown
-    const markdownContent = htmlToMarkdown(content);
+    // Convert editor content to HTML
+    const contentHTML = draftToHtml(convertToRaw(editorState.getCurrentContent()));
+    
+    // Convert HTML to Markdown (simple conversion)
+    let markdown = contentHTML
+      .replace(/<p>/gi, '')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<strong>/gi, '**').replace(/<\/strong>/gi, '**')
+      .replace(/<em>/gi, '*').replace(/<\/em>/gi, '*')
+      .replace(/<h1>/gi, '# ').replace(/<\/h1>/gi, '\n')
+      .replace(/<h2>/gi, '## ').replace(/<\/h2>/gi, '\n')
+      .replace(/<ul>/gi, '').replace(/<\/ul>/gi, '')
+      .replace(/<li>/gi, '- ').replace(/<\/li>/gi, '\n')
+      .replace(/<a href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+      .replace(/<[^>]*>/g, '')
+      .trim();
 
-    if (!title.trim() || !markdownContent.trim() || !ticker.trim()) {
+    if (!title.trim() || !markdown.trim() || !ticker.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -153,7 +141,7 @@ export function MyFeedPage({
     try {
       await createPost({
         title: title.trim(),
-        content: markdownContent.trim(),
+        content: markdown,
         ticker: ticker.toUpperCase(),
         category,
         sentiment,
@@ -164,7 +152,7 @@ export function MyFeedPage({
 
       // Reset form
       setTitle('');
-      setContent('');
+      setEditorState(EditorState.createEmpty());
       setTicker('');
       setCategory('DD');
       setSentiment('neutral');
@@ -197,9 +185,9 @@ export function MyFeedPage({
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
     if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${ Math.floor(seconds / 60) }m ago`;
-    if (seconds < 86400) return `${ Math.floor(seconds / 3600) }h ago`;
-    if (seconds < 604800) return `${ Math.floor(seconds / 86400) }d ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
     return date.toLocaleDateString();
   };
 
@@ -374,154 +362,22 @@ export function MyFeedPage({
 
                     <div>
                       <Label htmlFor="content" className="mb-2 block">Content *</Label>
-                      <div className="border border-slate-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500 transition-all">
-                        {/* Toolbar */}
-                        <div className="bg-slate-50 border-b border-slate-200 p-2 flex items-center gap-1 flex-wrap">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
-                            onClick={() => handleFormat('bold')}
-                            title="Bold"
-                          >
-                            <Bold className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
-                            onClick={() => handleFormat('italic')}
-                            title="Italic"
-                          >
-                            <Italic className="w-4 h-4" />
-                          </Button>
-                          <div className="w-px h-4 bg-slate-300 mx-1" />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
-                            onClick={() => handleFormat('formatBlock', '<h1>')}
-                            title="Heading 1"
-                          >
-                            <Type className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
-                            onClick={() => handleFormat('formatBlock', '<h2>')}
-                            title="Heading 2"
-                          >
-                            <Type className="w-4 h-4 text-xs" />
-                          </Button>
-                          <div className="w-px h-4 bg-slate-300 mx-1" />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
-                            onClick={() => handleFormat('insertUnorderedList')}
-                            title="Bullet List"
-                          >
-                            <List className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className={`h - 8 w - 8 p - 0 hover: bg - slate - 200 text - slate - 600 ${ showLinkInput ? 'bg-slate-200' : '' } `}
-                            onClick={() => {
-                              if (showLinkInput) {
-                                setShowLinkInput(false);
-                                setLinkUrl('');
-                              } else {
-                                setShowLinkInput(true);
-                              }
-                            }}
-                            title="Link"
-                          >
-                            <LinkIcon className="w-4 h-4" />
-                          </Button>
-                          {showLinkInput && (
-                            <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-1 h-8 animate-in fade-in slide-in-from-left-2">
-                              <input
-                                type="url"
-                                value={linkUrl}
-                                onChange={(e) => setLinkUrl(e.target.value)}
-                                placeholder="https://"
-                                className="h-6 w-40 text-sm px-1 outline-none"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    if (linkUrl) {
-                                      handleFormat('createLink', linkUrl);
-                                      setShowLinkInput(false);
-                                      setLinkUrl('');
-                                    }
-                                  }
-                                }}
-                                autoFocus
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-slate-100 text-emerald-600"
-                                onClick={() => {
-                                  if (linkUrl) {
-                                    handleFormat('createLink', linkUrl);
-                                    setShowLinkInput(false);
-                                    setLinkUrl('');
-                                  }
-                                }}
-                              >
-                                <Check className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-slate-100 text-slate-400"
-                                onClick={() => {
-                                  setShowLinkInput(false);
-                                  setLinkUrl('');
-                                }}
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
-                            onClick={handleImageUpload}
-                            title="Image"
-                          >
-                            <ImageIcon className="w-4 h-4" />
-                          </Button>
-                        </div>
-
-                        {/* Hidden file input for image uploads */}
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
-
-                        <RichTextEditor
-                          ref={editorRef}
-                          value={content}
-                          onChange={setContent}
+                      <div className="border border-slate-300 rounded-md overflow-hidden">
+                        <Editor
+                          editorState={editorState}
+                          onEditorStateChange={setEditorState}
                           placeholder="Share your analysis, insights, or news..."
-                          className="w-full min-h-[300px] px-4 py-3 focus:outline-none resize-y bg-white text-slate-900 placeholder:text-slate-400 [&:empty:before]:content-[attr(data-placeholder)] [&:empty:before]:text-slate-400"
+                          toolbar={{
+                            options: ['inline', 'fontSize', 'list', 'link'],
+                            inline: { options: ['bold', 'italic'] },
+                            fontSize: {
+                              options: [8, 10, 12, 14, 16, 18, 24, 30],
+                            },
+                            list: { options: ['unordered', 'ordered'] },
+                            link: { options: ['link'] },
+                          }}
+                          editorClassName="min-h-[500px] px-4 py-3 bg-white"
+                          toolbarClassName="border-b border-slate-200"
                         />
                       </div>
                     </div>

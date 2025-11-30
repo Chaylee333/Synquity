@@ -1,6 +1,6 @@
 import { ArrowLeft, BadgeCheck, Plus } from 'lucide-react';
 import { Button } from './ui/button';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { CreatorPnL } from './CreatorPnL';
 import { CreatorPosts } from './CreatorPosts';
 import { CreatePostDialog, NewPost } from './CreatePostDialog';
@@ -29,6 +29,9 @@ const creatorData: Record<string, any> = {
     brokerageReturn: 23.5,
     mockPnL: 89430,
     mockReturn: 18.2,
+    pnlAnnualized: 41.2,
+    pnlSinceJoining: 158.6,
+    sharpeRatio: 2.2,
   },
   'wall-street-oracle': {
     username: 'WallStreetOracle',
@@ -43,6 +46,9 @@ const creatorData: Record<string, any> = {
     brokerageReturn: 18.2,
     mockPnL: 145670,
     mockReturn: 12.8,
+    pnlAnnualized: 38.2,
+    pnlSinceJoining: 142.8,
+    sharpeRatio: 2.6,
   },
   'green-portfolio': {
     username: 'GreenPortfolio',
@@ -57,6 +63,9 @@ const creatorData: Record<string, any> = {
     brokerageReturn: 15.4,
     mockPnL: 34210,
     mockReturn: 11.6,
+    pnlAnnualized: 28.3,
+    pnlSinceJoining: 72.5,
+    sharpeRatio: 1.8,
   },
 };
 
@@ -85,6 +94,9 @@ export function CreatorPage({
     brokerageReturn: 0,
     mockPnL: 0,
     mockReturn: 0,
+    pnlAnnualized: 0,
+    pnlSinceJoining: 0,
+    sharpeRatio: 0,
   };
 
   const isOwnProfile = isLoggedIn && currentUserId === creatorId;
@@ -138,7 +150,10 @@ export function CreatorPage({
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <div className="flex items-start gap-6">
               <Avatar className="w-24 h-24">
-                <AvatarFallback className="text-2xl">{creator.avatar}</AvatarFallback>
+                <AvatarImage src={creator.avatar_url} />
+                <AvatarFallback className="text-2xl bg-emerald-500 text-white">
+                  {creator.username?.charAt(0).toUpperCase() || 'U'}
+                </AvatarFallback>
               </Avatar>
 
               <div className="flex-1">
@@ -186,6 +201,9 @@ export function CreatorPage({
           <CreatorPnL 
             mockPnL={creator.mockPnL}
             mockReturn={creator.mockReturn}
+            pnlAnnualized={creator.pnlAnnualized}
+            pnlSinceJoining={creator.pnlSinceJoining}
+            sharpeRatio={creator.sharpeRatio}
           />
 
           {/* Posts */}

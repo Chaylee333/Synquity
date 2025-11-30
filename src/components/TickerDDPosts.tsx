@@ -1,6 +1,6 @@
 import { FileText, ThumbsUp, MessageSquare, BadgeCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 
 interface TickerDDPostsProps {
@@ -120,7 +120,10 @@ export function TickerDDPosts({ ticker, onCreatorClick, onPostClick }: TickerDDP
                         }}
                       >
                         <Avatar className="w-6 h-6">
-                          <AvatarFallback className="text-xs">{post.avatar}</AvatarFallback>
+                          <AvatarImage src={post.authorAvatar} />
+                          <AvatarFallback className="text-xs bg-emerald-500 text-white">
+                            {post.author?.charAt(0).toUpperCase() || 'U'}
+                          </AvatarFallback>
                         </Avatar>
                         <span>{post.author}</span>
                         {post.verified && (

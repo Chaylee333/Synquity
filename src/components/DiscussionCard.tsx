@@ -1,7 +1,7 @@
 import { MessageSquare, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
 
 interface Discussion {
@@ -60,7 +60,10 @@ export function DiscussionCard({ discussion }: DiscussionCardProps) {
             <div className="flex items-center gap-3 text-slate-500">
               <div className="flex items-center gap-2">
                 <Avatar className="w-6 h-6">
-                  <AvatarFallback className="text-xs">{discussion.avatar}</AvatarFallback>
+                  <AvatarImage src={discussion.authorAvatar} />
+                  <AvatarFallback className="text-xs bg-emerald-500 text-white">
+                    {discussion.author?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
                 </Avatar>
                 <span>{discussion.author}</span>
               </div>
