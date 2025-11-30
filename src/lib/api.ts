@@ -298,6 +298,24 @@ export async function fetchPostById(postId: number) {
     return data;
 }
 
+// Fetch the latest price for a ticker
+export async function fetchLatestTickerPrice(ticker: string): Promise<number | null> {
+    const { data, error } = await supabase
+        .from('ticker_prices')
+        .select('price')
+        .eq('ticker', ticker.toUpperCase())
+        .order('price_date', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error) {
+        console.error('Error fetching ticker price:', error);
+        return null;
+    }
+
+    return data?.price || null;
+}
+
 export async function createPost(post: {
     title: string;
     content: string;
@@ -314,11 +332,18 @@ export async function createPost(post: {
         throw new Error('User not authenticated');
     }
 
+    // Get the current price for the ticker to store as stock_price_at_posting
+    let stockPriceAtPosting: number | null = null;
+    if (post.ticker) {
+        stockPriceAtPosting = await fetchLatestTickerPrice(post.ticker);
+    }
+
     const { data, error } = await supabase
         .from('posts')
         .insert({
             ...post,
             author_id: user.id,
+            stock_price_at_posting: stockPriceAtPosting,
         })
         .select()
         .single();
@@ -954,4 +979,61 @@ export async function updatePassword(newPassword: string) {
     }
 
     return true;
+}
+
+// ============================================
+// TICKER PRICE MANAGEMENT
+// ============================================
+
+// Fetch all available ticker prices
+export async function fetchTickerPrices() {
+    const { data, error } = await supabase
+        .from('ticker_prices')
+        .select('*')
+        .order('price_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching ticker prices:', error);
+        return [];
+    }
+
+    return data;
+}
+
+// Insert or update a ticker price (for admin/service use)
+export async function upsertTickerPrice(ticker: string, price: number, priceDate?: string) {
+    const { data, error } = await supabase
+        .from('ticker_prices')
+        .upsert({
+            ticker: ticker.toUpperCase(),
+            price,
+            price_date: priceDate || new Date().toISOString().split('T')[0],
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error upserting ticker price:', error);
+        throw error;
+    }
+
+    return data;
+}
+
+// Fetch post performance tracking for a specific post
+export async function fetchPostPerformance(postId: number) {
+    const { data, error } = await supabase
+        .from('post_performance_tracking')
+        .select('*')
+        .eq('post_id', postId)
+        .order('tracking_date', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching post performance:', error);
+        return null;
+    }
+
+    return data;
 }
