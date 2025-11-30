@@ -1071,16 +1071,8 @@ export function DiscoverPage({
                       {/* Performance Metrics */}
                       <div className="flex items-center gap-4 text-slate-600">
                         <div className="flex items-center gap-1">
-                          <Target className="w-4 h-4" />
-                          <span>{creator.credibilityScore}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Award className="w-4 h-4" />
-                          <span>{creator.winRate}% Win Rate</span>
-                        </div>
-                        <div className="flex items-center gap-1">
                           <TrendingUp className="w-4 h-4 text-emerald-600" />
-                          <span className="text-emerald-600">+{creator.pnlAnnualizedPercent}% P&L</span>
+                          <span className="text-emerald-600 font-medium">+{creator.pnlAnnualizedPercent}% P&L</span>
                         </div>
                         <div>
                           <Badge

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, TrendingUp, TrendingDown, BadgeCheck, MessageCircle, ThumbsUp } from 'lucide-react';
+```javascript
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, BadgeCheck, MessageCircle, ThumbsUp, Bold, Italic, List, Type, AlignLeft, AlignCenter, AlignRight, Link as LinkIcon, Image as ImageIcon, Check, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -15,9 +16,11 @@ import {
 } from './ui/select';
 import { Separator } from './ui/separator';
 import { ForumHeader } from './ForumHeader';
+import { PerformanceMetricsCard } from './PerformanceMetricsCard';
 import { useAuth } from '../contexts/AuthContext';
-import { createPost, fetchUserPosts, fetchUserComments, fetchUserPerformanceMetrics } from '../lib/api';
+import { createPost, fetchUserPosts, fetchUserComments, fetchUserPerformanceMetrics, fetchUserFollowCounts, fetchCreatorProfile, searchTickers } from '../lib/api';
 import { toast } from 'sonner';
+import { RichTextEditor, RichTextEditorRef, htmlToMarkdown } from './ui/rich-text-editor';
 
 interface MyFeedPageProps {
   onNavigateHome: () => void;
@@ -45,12 +48,20 @@ export function MyFeedPage({
   onSettingsClick
 }: MyFeedPageProps) {
   const { user } = useAuth();
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [postsCount, setPostsCount] = useState(0);
   const [commentsCount, setCommentsCount] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'latest' | 'ranking'>('ranking');
+  const [tickerSuggestions, setTickerSuggestions] = useState<any[]>([]);
+  const [showTickerSuggestions, setShowTickerSuggestions] = useState(false);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
 
   // Post creation state
   const [title, setTitle] = useState('');
@@ -62,6 +73,12 @@ export function MyFeedPage({
   const [timeHorizon, setTimeHorizon] = useState('Medium');
   const [riskProfile, setRiskProfile] = useState('Moderate');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const editorRef = useRef<RichTextEditorRef>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFormat = (command: string, value?: string) => {
+    editorRef.current?.execCommand(command, value);
+  };
 
   useEffect(() => {
     if (user) {
@@ -72,15 +89,29 @@ export function MyFeedPage({
   const loadUserData = async () => {
     setIsLoading(true);
     try {
-      const [posts, comments, metrics] = await Promise.all([
+      const [posts, comments, metrics, followCounts, profile] = await Promise.all([
         fetchUserPosts(user!.id),
         fetchUserComments(user!.id),
-        fetchUserPerformanceMetrics(user!.id)
+        fetchUserPerformanceMetrics(user!.id),
+        fetchUserFollowCounts(user!.id),
+        fetchCreatorProfile(user!.id)
       ]);
       setUserPosts(posts);
       setPostsCount(posts.length);
       setCommentsCount(comments.length);
-      setPerformanceMetrics(metrics);
+      setCommentsCount(comments.length);
+
+      // Merge profile reputation into metrics
+      const enhancedMetrics = {
+        ...metrics,
+        reputation_score: profile?.reputation_score
+      };
+      setPerformanceMetrics(enhancedMetrics);
+
+      setFollowersCount(followCounts.followers);
+      setFollowersCount(followCounts.followers);
+      setFollowingCount(followCounts.following);
+      setUserProfile(profile);
     } catch (error) {
       console.error('Error loading user data:', error);
       toast.error('Failed to load your feed data');
@@ -89,10 +120,31 @@ export function MyFeedPage({
     }
   };
 
+  const handleImageUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const imageUrl = URL.createObjectURL(file);
+      // Insert image using execCommand
+      editorRef.current?.execCommand('insertImage', imageUrl);
+      editorRef.current?.focus();
+      // Reset the input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleSubmitPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!title || !content || !ticker) {
+
+    // Convert HTML content to Markdown
+    const markdownContent = htmlToMarkdown(content);
+
+    if (!title.trim() || !markdownContent.trim() || !ticker.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -100,8 +152,8 @@ export function MyFeedPage({
     setIsSubmitting(true);
     try {
       await createPost({
-        title,
-        content,
+        title: title.trim(),
+        content: markdownContent.trim(),
         ticker: ticker.toUpperCase(),
         category,
         sentiment,
@@ -143,11 +195,11 @@ export function MyFeedPage({
     const date = new Date(dateString);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    if (seconds < 3600) return `${ Math.floor(seconds / 60) }m ago`;
+    if (seconds < 86400) return `${ Math.floor(seconds / 3600) }h ago`;
+    if (seconds < 604800) return `${ Math.floor(seconds / 86400) }d ago`;
     return date.toLocaleDateString();
   };
 
@@ -185,14 +237,28 @@ export function MyFeedPage({
                     {user.user_metadata.full_name}
                   </h1>
                   <p className="text-slate-500 font-medium">@{user.user_metadata.username}</p>
+                  {userProfile?.reputation_score !== undefined && (
+                    <Badge variant="secondary" className="mt-1 bg-purple-100 text-purple-700 border-purple-200">
+                      🔮 Reputation: {(userProfile.reputation_score * 100).toFixed(0)}
+                    </Badge>
+                  )}
                   <div className="flex flex-wrap gap-6 text-sm text-slate-600 mt-3">
                     <div className="flex items-center gap-2">
                       <div className="text-slate-900 text-lg font-bold">{postsCount}</div>
                       <div>Posts</div>
                     </div>
+
                     <div className="flex items-center gap-2">
                       <div className="text-slate-900 text-lg font-bold">{commentsCount}</div>
                       <div>Comments</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-slate-900 text-lg font-bold">{followersCount}</div>
+                      <div>Followers</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-slate-900 text-lg font-bold">{followingCount}</div>
+                      <div>Following</div>
                     </div>
                   </div>
                 </div>
@@ -233,73 +299,7 @@ export function MyFeedPage({
 
               {/* Performance Metrics */}
               {performanceMetrics && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {performanceMetrics.specialty && (
-                      <div>
-                        <div className="text-slate-500 text-sm mb-1">Specialty</div>
-                        <div className="font-semibold text-slate-900">{performanceMetrics.specialty}</div>
-                      </div>
-                    )}
-                    
-                    <Separator />
-                    
-                    <div>
-                      <div className="text-slate-500 text-sm mb-1">P&L % (Annualized)</div>
-                      <div className={`font-bold text-lg flex items-center gap-1 ${
-                        performanceMetrics.pnl_annualized_percent >= 0 ? 'text-emerald-600' : 'text-red-600'
-                      }`}>
-                        {performanceMetrics.pnl_annualized_percent >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                        {performanceMetrics.pnl_annualized_percent >= 0 ? '+' : ''}{performanceMetrics.pnl_annualized_percent.toFixed(1)}%
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <div className="text-slate-500 text-sm mb-1">P&L % Since Joining</div>
-                      <div className={`font-bold text-lg flex items-center gap-1 ${
-                        performanceMetrics.pnl_since_joining_percent >= 0 ? 'text-emerald-600' : 'text-red-600'
-                      }`}>
-                        {performanceMetrics.pnl_since_joining_percent >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                        {performanceMetrics.pnl_since_joining_percent >= 0 ? '+' : ''}{performanceMetrics.pnl_since_joining_percent.toFixed(1)}%
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <div className="text-slate-500 text-sm mb-1">Sharpe Ratio</div>
-                      <div className="font-bold text-slate-900 text-lg">
-                        {performanceMetrics.sharpe_ratio.toFixed(2)}
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <div className="text-slate-500 text-sm mb-1">Average Drawdown %</div>
-                      <div className="font-bold text-red-600 text-lg">
-                        {performanceMetrics.avg_drawdown_percent.toFixed(1)}%
-                      </div>
-                    </div>
-
-                    {performanceMetrics.credibility_score && (
-                      <>
-                        <Separator />
-                        <div>
-                          <div className="text-slate-500 text-sm mb-1">Credibility Score</div>
-                          <div className="font-bold text-blue-600 text-lg">
-                            {performanceMetrics.credibility_score}/100
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+                <PerformanceMetricsCard metrics={performanceMetrics} />
               )}
             </div>
 
@@ -323,27 +323,207 @@ export function MyFeedPage({
                       />
                     </div>
 
-                    <div>
+                    <div className="relative">
                       <Label htmlFor="ticker">Stock Ticker *</Label>
                       <Input
                         id="ticker"
                         value={ticker}
-                        onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                        onChange={async (e) => {
+                          const value = e.target.value.toUpperCase();
+                          setTicker(value);
+
+                          if (value.length > 0) {
+                            const suggestions = await searchTickers(value, 5);
+                            setTickerSuggestions(suggestions);
+                            setShowTickerSuggestions(true);
+                          } else {
+                            setTickerSuggestions([]);
+                            setShowTickerSuggestions(false);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay hiding to allow click on suggestion
+                          setTimeout(() => setShowTickerSuggestions(false), 200);
+                        }}
+                        onFocus={() => {
+                          if (ticker.length > 0 && tickerSuggestions.length > 0) {
+                            setShowTickerSuggestions(true);
+                          }
+                        }}
                         placeholder="e.g., AAPL, TSLA, NVDA"
                         required
                       />
+                      {showTickerSuggestions && tickerSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                          {tickerSuggestions.map((suggestion) => (
+                            <div
+                              key={suggestion.ticker}
+                              className="px-4 py-2 hover:bg-slate-100 cursor-pointer"
+                              onClick={() => {
+                                setTicker(suggestion.ticker);
+                                setShowTickerSuggestions(false);
+                              }}
+                            >
+                              <div className="font-semibold text-slate-900">{suggestion.ticker}</div>
+                              <div className="text-sm text-slate-600">{suggestion.name}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div>
-                      <Label htmlFor="content">Content *</Label>
-                      <textarea
-                        id="content"
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        placeholder="Share your analysis, insights, or news..."
-                        required
-                        className="w-full min-h-[150px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
+                      <Label htmlFor="content" className="mb-2 block">Content *</Label>
+                      <div className="border border-slate-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500 transition-all">
+                        {/* Toolbar */}
+                        <div className="bg-slate-50 border-b border-slate-200 p-2 flex items-center gap-1 flex-wrap">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
+                            onClick={() => handleFormat('bold')}
+                            title="Bold"
+                          >
+                            <Bold className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
+                            onClick={() => handleFormat('italic')}
+                            title="Italic"
+                          >
+                            <Italic className="w-4 h-4" />
+                          </Button>
+                          <div className="w-px h-4 bg-slate-300 mx-1" />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
+                            onClick={() => handleFormat('formatBlock', '<h1>')}
+                            title="Heading 1"
+                          >
+                            <Type className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
+                            onClick={() => handleFormat('formatBlock', '<h2>')}
+                            title="Heading 2"
+                          >
+                            <Type className="w-4 h-4 text-xs" />
+                          </Button>
+                          <div className="w-px h-4 bg-slate-300 mx-1" />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
+                            onClick={() => handleFormat('insertUnorderedList')}
+                            title="Bullet List"
+                          >
+                            <List className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={`h - 8 w - 8 p - 0 hover: bg - slate - 200 text - slate - 600 ${ showLinkInput ? 'bg-slate-200' : '' } `}
+                            onClick={() => {
+                              if (showLinkInput) {
+                                setShowLinkInput(false);
+                                setLinkUrl('');
+                              } else {
+                                setShowLinkInput(true);
+                              }
+                            }}
+                            title="Link"
+                          >
+                            <LinkIcon className="w-4 h-4" />
+                          </Button>
+                          {showLinkInput && (
+                            <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-1 h-8 animate-in fade-in slide-in-from-left-2">
+                              <input
+                                type="url"
+                                value={linkUrl}
+                                onChange={(e) => setLinkUrl(e.target.value)}
+                                placeholder="https://"
+                                className="h-6 w-40 text-sm px-1 outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (linkUrl) {
+                                      handleFormat('createLink', linkUrl);
+                                      setShowLinkInput(false);
+                                      setLinkUrl('');
+                                    }
+                                  }
+                                }}
+                                autoFocus
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-slate-100 text-emerald-600"
+                                onClick={() => {
+                                  if (linkUrl) {
+                                    handleFormat('createLink', linkUrl);
+                                    setShowLinkInput(false);
+                                    setLinkUrl('');
+                                  }
+                                }}
+                              >
+                                <Check className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-slate-100 text-slate-400"
+                                onClick={() => {
+                                  setShowLinkInput(false);
+                                  setLinkUrl('');
+                                }}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-slate-200 text-slate-600"
+                            onClick={handleImageUpload}
+                            title="Image"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        {/* Hidden file input for image uploads */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+
+                        <RichTextEditor
+                          ref={editorRef}
+                          value={content}
+                          onChange={setContent}
+                          placeholder="Share your analysis, insights, or news..."
+                          className="w-full min-h-[300px] px-4 py-3 focus:outline-none resize-y bg-white text-slate-900 placeholder:text-slate-400 [&:empty:before]:content-[attr(data-placeholder)] [&:empty:before]:text-slate-400"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -377,7 +557,7 @@ export function MyFeedPage({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="market">Market</Label>
                         <Select value={market} onValueChange={setMarket}>
@@ -400,23 +580,9 @@ export function MyFeedPage({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Short">Short</SelectItem>
-                            <SelectItem value="Medium">Medium</SelectItem>
-                            <SelectItem value="Long">Long</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="riskProfile">Risk Profile</Label>
-                        <Select value={riskProfile} onValueChange={setRiskProfile}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Low">Low</SelectItem>
-                            <SelectItem value="Moderate">Moderate</SelectItem>
-                            <SelectItem value="High">High</SelectItem>
+                            <SelectItem value="Short">Short Term</SelectItem>
+                            <SelectItem value="Medium">Medium Term</SelectItem>
+                            <SelectItem value="Long">Long Term</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -435,8 +601,17 @@ export function MyFeedPage({
 
               {/* User's Posts Feed */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>My Posts</CardTitle>
+                  <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ranking">🔮 Oracle Rank</SelectItem>
+                      <SelectItem value="latest">🕒 Latest</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -473,8 +648,8 @@ export function MyFeedPage({
                                   post.sentiment === 'bullish'
                                     ? 'bg-emerald-100 text-emerald-700'
                                     : post.sentiment === 'bearish'
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-slate-100 text-slate-700'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-slate-100 text-slate-700'
                                 }
                               >
                                 {post.sentiment === 'bullish' && '🐂'}
@@ -496,7 +671,7 @@ export function MyFeedPage({
                             {post.content}
                           </p>
 
-                          <div className="flex items-center gap-4 text-sm text-slate-500">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="flex items-center gap-1">
                               <ThumbsUp className="w-4 h-4" />
                               {post.like_count || 0}
@@ -508,6 +683,16 @@ export function MyFeedPage({
                             <Badge variant="outline" className="text-xs">
                               {post.category}
                             </Badge>
+                            {post.market && (
+                              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                {post.market}
+                              </Badge>
+                            )}
+                            {post.time_horizon && (
+                              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                {post.time_horizon === 'Short' ? 'Short Term' : post.time_horizon === 'Medium' ? 'Medium Term' : post.time_horizon === 'Long' ? 'Long Term' : post.time_horizon}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       ))}

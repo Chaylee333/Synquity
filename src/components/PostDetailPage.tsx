@@ -6,11 +6,11 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
-import { 
-  fetchPostById, 
-  fetchComments, 
-  addComment, 
-  togglePostLike, 
+import {
+  fetchPostById,
+  fetchComments,
+  addComment,
+  togglePostLike,
   toggleCommentLike,
   checkPostLiked,
   checkCommentLiked,
@@ -372,7 +372,7 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
 
       // Fetch comments
       const commentsData = await fetchComments(postId);
-      
+
       // Transform comments to include proper display data
       const transformedComments = transformCommentsForDisplay(commentsData);
       setComments(transformedComments);
@@ -391,21 +391,21 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
       if (commentsData.length > 0) {
         const commentLikeStatus: Record<number, boolean> = {};
         const commentLikeCounts: Record<number, number> = {};
-        
+
         const allIds = getAllCommentIds(commentsData);
-        
+
         await Promise.all(
           allIds.map(async (commentId) => {
             const count = await getCommentLikeCount(commentId);
             commentLikeCounts[commentId] = count;
-            
+
             if (user) {
               const liked = await checkCommentLiked(commentId);
               commentLikeStatus[commentId] = liked;
             }
           })
         );
-        
+
         setCommentLikes(commentLikeStatus);
         setCommentUpvotes(commentLikeCounts);
       }
@@ -528,9 +528,9 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
     try {
       const isLiked = await toggleCommentLike(commentId);
       setCommentLikes(prev => ({ ...prev, [commentId]: isLiked }));
-      setCommentUpvotes(prev => ({ 
-        ...prev, 
-        [commentId]: (prev[commentId] || 0) + (isLiked ? 1 : -1) 
+      setCommentUpvotes(prev => ({
+        ...prev,
+        [commentId]: (prev[commentId] || 0) + (isLiked ? 1 : -1)
       }));
     } catch (error) {
       console.error('Error toggling comment like:', error);
@@ -549,32 +549,32 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
     setIsSubmitting(true);
     try {
       await addComment(postId, newComment);
-      
+
       // Reload all comments to get the fresh data with proper structure
       const commentsData = await fetchComments(postId);
       const transformedComments = transformCommentsForDisplay(commentsData);
       setComments(transformedComments);
-      
+
       // Refresh like counts for new comments
       const allIds = getAllCommentIds(commentsData);
       const commentLikeCounts: Record<number, number> = {};
       const commentLikeStatus: Record<number, boolean> = {};
-      
+
       await Promise.all(
         allIds.map(async (commentId) => {
           const count = await getCommentLikeCount(commentId);
           commentLikeCounts[commentId] = count;
-          
+
           if (user) {
             const liked = await checkCommentLiked(commentId);
             commentLikeStatus[commentId] = liked;
           }
         })
       );
-      
+
       setCommentUpvotes(commentLikeCounts);
       setCommentLikes(commentLikeStatus);
-      
+
       setNewComment('');
       toast.success('Comment added!');
     } catch (error) {
@@ -596,32 +596,32 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
     setIsSubmitting(true);
     try {
       await addComment(postId, replyText, parentCommentId);
-      
+
       // Reload all comments to get the fresh data with proper structure
       const commentsData = await fetchComments(postId);
       const transformedComments = transformCommentsForDisplay(commentsData);
       setComments(transformedComments);
-      
+
       // Refresh like counts for new comments
       const allIds = getAllCommentIds(commentsData);
       const commentLikeCounts: Record<number, number> = {};
       const commentLikeStatus: Record<number, boolean> = {};
-      
+
       await Promise.all(
         allIds.map(async (commentId) => {
           const count = await getCommentLikeCount(commentId);
           commentLikeCounts[commentId] = count;
-          
+
           if (user) {
             const liked = await checkCommentLiked(commentId);
             commentLikeStatus[commentId] = liked;
           }
         })
       );
-      
+
       setCommentUpvotes(commentLikeCounts);
       setCommentLikes(commentLikeStatus);
-      
+
       setReplyText('');
       setReplyingTo(null);
       toast.success('Reply added!');
@@ -642,7 +642,7 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
       <div className={marginLeft}>
         <div className={`rounded-lg p-4 border ${bgColor}`}>
           <div className="flex items-start gap-3">
-            <Avatar 
+            <Avatar
               className="w-7 h-7 cursor-pointer"
               onClick={() => onCreatorClick(reply.authorId)}
             >
@@ -653,7 +653,7 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
 
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <span 
+                <span
                   className="text-slate-900 cursor-pointer hover:text-emerald-600 text-sm"
                   onClick={() => onCreatorClick(reply.authorId)}
                 >
@@ -772,8 +772,8 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
             {/* Post Header */}
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
-                <Badge 
-                  variant="secondary" 
+                <Badge
+                  variant="secondary"
                   className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
                   onClick={() => onTickerClick(post.ticker)}
                 >
@@ -787,11 +787,21 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                       post.sentiment === 'bullish'
                         ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
                         : post.sentiment === 'bearish'
-                        ? 'border-red-200 text-red-700 bg-red-50'
-                        : 'border-slate-200 text-slate-700'
+                          ? 'border-red-200 text-red-700 bg-red-50'
+                          : 'border-slate-200 text-slate-700'
                     }
                   >
                     {post.sentiment.charAt(0).toUpperCase() + post.sentiment.slice(1)}
+                  </Badge>
+                )}
+                {post.market && (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                    {post.market}
+                  </Badge>
+                )}
+                {post.time_horizon && (
+                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                    {post.time_horizon === 'Short' ? 'Short Term' : post.time_horizon === 'Medium' ? 'Medium Term' : post.time_horizon === 'Long' ? 'Long Term' : post.time_horizon}
                   </Badge>
                 )}
                 {post.read_time && <span className="text-slate-500">• {post.read_time} read</span>}
@@ -807,9 +817,8 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                       <div className="text-slate-600 mb-1">Stock Performance Since Post</div>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-900">${post.ticker}</span>
-                        <div className={`flex items-center gap-1 ${
-                          post.post_performance_tracking[0].stock_performance >= 0 ? 'text-emerald-600' : 'text-red-600'
-                        }`}>
+                        <div className={`flex items-center gap-1 ${post.post_performance_tracking[0].stock_performance >= 0 ? 'text-emerald-600' : 'text-red-600'
+                          }`}>
                           {post.post_performance_tracking[0].stock_performance >= 0 ? (
                             <TrendingUp className="w-5 h-5" />
                           ) : (
@@ -831,7 +840,7 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
               )}
 
               <div className="flex items-center justify-between">
-                <div 
+                <div
                   className="flex items-center gap-3 cursor-pointer hover:opacity-80"
                   onClick={() => onCreatorClick(post.author_id)}
                 >
@@ -923,7 +932,7 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
                     {/* Main Comment */}
                     <div className="bg-slate-50 rounded-lg p-4">
                       <div className="flex items-start gap-3">
-                        <Avatar 
+                        <Avatar
                           className="w-8 h-8 cursor-pointer"
                           onClick={() => onCreatorClick(comment.authorId)}
                         >
@@ -934,7 +943,7 @@ export function PostDetailPage({ postId, onNavigateHome, onTickerClick, onCreato
 
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span 
+                            <span
                               className="text-slate-900 cursor-pointer hover:text-emerald-600"
                               onClick={() => onCreatorClick(comment.authorId)}
                             >

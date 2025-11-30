@@ -71,6 +71,7 @@ export async function fetchPosts(filters?: {
     category?: string;
     authorId?: string;
     limit?: number;
+    sortBy?: 'latest' | 'ranking';
 }) {
     let query = supabase
         .from('posts')
@@ -81,13 +82,19 @@ export async function fetchPosts(filters?: {
         username,
         full_name,
         avatar_url,
-        is_verified
+        is_verified,
+        reputation_score
       ),
       post_likes (count),
       comments (count),
       post_performance_tracking (*)
-    `)
-        .order('created_at', { ascending: false });
+    `);
+
+    if (filters?.sortBy === 'ranking') {
+        query = query.order('ranking_score', { ascending: false });
+    } else {
+        query = query.order('created_at', { ascending: false });
+    }
 
     if (filters?.ticker) {
         query = query.eq('ticker', filters.ticker);
@@ -433,7 +440,7 @@ export async function fetchCreatorProfile(userId: string) {
         .select(`
       *,
       creator_performance_metrics (*),
-      posts (
+      posts!posts_author_id_fkey (
         *,
         post_likes (count),
         comments (count)
@@ -508,6 +515,31 @@ export async function checkIfFollowing(followingId: string) {
         .single();
 
     return !!data && !error;
+}
+
+export async function fetchUserFollowCounts(userId: string) {
+    const { count: followersCount, error: followersError } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', userId);
+
+    if (followersError) {
+        console.error('Error fetching followers count:', followersError);
+    }
+
+    const { count: followingCount, error: followingError } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', userId);
+
+    if (followingError) {
+        console.error('Error fetching following count:', followingError);
+    }
+
+    return {
+        followers: followersCount || 0,
+        following: followingCount || 0
+    };
 }
 
 // ============================================
