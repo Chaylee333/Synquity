@@ -1,10 +1,17 @@
-import { ArrowLeft, BadgeCheck, Plus } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Loader2, UserCheck } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { CreatorPnL } from './CreatorPnL';
 import { CreatorPosts } from './CreatorPosts';
-import { CreatePostDialog, NewPost } from './CreatePostDialog';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { followUser, unfollowUser, checkIfFollowing, fetchCreatorProfile } from '../lib/api';
+import { toast } from 'sonner';
+
+// Helper to check if a string is a valid UUID
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
 
 interface CreatorPageProps {
   creatorId: string;
@@ -77,11 +84,40 @@ export function CreatorPage({
   isLoggedIn = false,
   currentUserId = ''
 }: CreatorPageProps) {
-  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
-  const [newPostsCount, setNewPostsCount] = useState(0);
-  const [newPosts, setNewPosts] = useState<Array<any>>([]);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [creatorUUID, setCreatorUUID] = useState<string | null>(null);
+  const [dbCreator, setDbCreator] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const creator = creatorData[creatorId] || {
+  // Fetch creator from database if creatorId is a UUID
+  useEffect(() => {
+    async function loadCreator() {
+      setIsLoading(true);
+      
+      if (isValidUUID(creatorId)) {
+        // It's a UUID, fetch from database
+        try {
+          const profile = await fetchCreatorProfile(creatorId);
+          if (profile) {
+            setDbCreator(profile);
+            setCreatorUUID(creatorId);
+          }
+        } catch (error) {
+          console.error('Error fetching creator profile:', error);
+        }
+      } else {
+        // It's a slug, use mock data
+        setCreatorUUID(null);
+      }
+      
+      setIsLoading(false);
+    }
+    loadCreator();
+  }, [creatorId]);
+
+  // Use database creator if available, otherwise fall back to mock data
+  const mockCreator = creatorData[creatorId] || {
     username: 'Unknown User',
     avatar: 'U',
     verified: false,
@@ -99,31 +135,80 @@ export function CreatorPage({
     sharpeRatio: 0,
   };
 
-  const isOwnProfile = isLoggedIn && currentUserId === creatorId;
+  const creator = dbCreator ? {
+    username: dbCreator.username || dbCreator.full_name || 'Unknown User',
+    avatar: dbCreator.avatar_url || '',
+    avatar_url: dbCreator.avatar_url,
+    verified: dbCreator.is_verified || false,
+    bio: dbCreator.bio || 'Stock market enthusiast',
+    followers: dbCreator.follower_count || 0,
+    following: dbCreator.following_count || 0,
+    posts: dbCreator.post_count || 0,
+    joinedDate: dbCreator.created_at ? `Joined ${new Date(dbCreator.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Recently joined',
+    brokeragePnL: 0,
+    brokerageReturn: 0,
+    mockPnL: dbCreator.performance_metrics?.pnl_absolute_dollars || 0,
+    mockReturn: dbCreator.performance_metrics?.pnl_annualized_percent || 0,
+    pnlAnnualized: dbCreator.performance_metrics?.pnl_annualized_percent || 0,
+    pnlSinceJoining: dbCreator.performance_metrics?.pnl_since_joining_percent || 0,
+    sharpeRatio: dbCreator.performance_metrics?.sharpe_ratio || 0,
+  } : mockCreator;
 
-  const handleCreatePost = (post: NewPost) => {
-    // Create a new post object with additional metadata
-    const newPost = {
-      id: Date.now(), // Simple ID generation
-      title: post.title,
-      ticker: post.ticker,
-      author: creator.username,
-      authorId: creatorId,
-      avatar: creator.avatar,
-      verified: creator.verified,
-      timestamp: 'Just now',
-      summary: post.summary,
-      likes: 0,
-      comments: 0,
-      sentiment: post.sentiment,
-      stockPerformance: 0,
-      market: post.market,
-      timeHorizon: post.timeHorizon,
-      riskProfile: post.riskProfile,
-    };
+  const [followerCount, setFollowerCount] = useState(creator.followers);
+  const isOwnProfile = isLoggedIn && (currentUserId === creatorId || currentUserId === creatorUUID);
 
-    setNewPosts(prev => [newPost, ...prev]);
-    setNewPostsCount(prev => prev + 1);
+  // Update follower count when creator changes
+  useEffect(() => {
+    setFollowerCount(creator.followers);
+  }, [creator.followers]);
+
+  // Check if current user is following this creator
+  useEffect(() => {
+    async function checkFollowStatus() {
+      // Only check if we have a valid UUID and user is logged in
+      if (isLoggedIn && !isOwnProfile && creatorUUID) {
+        try {
+          const following = await checkIfFollowing(creatorUUID);
+          setIsFollowing(following);
+        } catch (error) {
+          console.error('Error checking follow status:', error);
+        }
+      }
+    }
+    checkFollowStatus();
+  }, [isLoggedIn, creatorUUID, isOwnProfile]);
+
+  const handleFollowToggle = async () => {
+    if (!isLoggedIn) {
+      toast.error('Please log in to follow creators');
+      return;
+    }
+
+    // Need a valid UUID to follow
+    if (!creatorUUID) {
+      toast.error('Cannot follow this creator (demo profile)');
+      return;
+    }
+
+    setIsFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await unfollowUser(creatorUUID);
+        setIsFollowing(false);
+        setFollowerCount(prev => Math.max(0, prev - 1));
+        toast.success(`Unfollowed ${creator.username}`);
+      } else {
+        await followUser(creatorUUID);
+        setIsFollowing(true);
+        setFollowerCount(prev => prev + 1);
+        toast.success(`Now following ${creator.username}`);
+      }
+    } catch (error: any) {
+      console.error('Error toggling follow:', error);
+      toast.error(error.message || 'Failed to update follow status');
+    } finally {
+      setIsFollowLoading(false);
+    }
   };
 
   return (
@@ -170,10 +255,10 @@ export function CreatorPage({
 
                 <div className="flex items-center gap-6 text-slate-600 mb-4">
                   <div>
-                    <span className="text-slate-900">{creator.posts + newPostsCount}</span> posts
+                    <span className="text-slate-900">{creator.posts}</span> posts
                   </div>
                   <div>
-                    <span className="text-slate-900">{creator.followers.toLocaleString()}</span> followers
+                    <span className="text-slate-900">{followerCount.toLocaleString()}</span> followers
                   </div>
                   <div>
                     <span className="text-slate-900">{creator.following}</span> following
@@ -183,16 +268,27 @@ export function CreatorPage({
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  {isOwnProfile ? (
-                    <Button onClick={() => setIsCreatePostOpen(true)} className="gap-2">
-                      <Plus className="w-4 h-4" />
-                      Create Post
+                {!isOwnProfile && (
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={handleFollowToggle}
+                      disabled={isFollowLoading}
+                      variant={isFollowing ? "outline" : "default"}
+                      className={isFollowing ? "gap-2" : ""}
+                    >
+                      {isFollowLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isFollowing ? (
+                        <>
+                          <UserCheck className="w-4 h-4" />
+                          Following
+                        </>
+                      ) : (
+                        'Follow'
+                      )}
                     </Button>
-                  ) : (
-                    <Button>Follow</Button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -211,18 +307,11 @@ export function CreatorPage({
             creatorId={creatorId}
             onTickerClick={onTickerClick}
             onPostClick={onPostClick}
-            newPosts={newPosts}
+            newPosts={[]}
             isOwnProfile={isOwnProfile}
           />
         </div>
       </div>
-
-      {/* Create Post Dialog */}
-      <CreatePostDialog
-        open={isCreatePostOpen}
-        onOpenChange={setIsCreatePostOpen}
-        onCreatePost={handleCreatePost}
-      />
     </>
   );
 }
