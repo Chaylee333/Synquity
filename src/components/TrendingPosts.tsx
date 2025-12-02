@@ -1,4 +1,4 @@
-import { Flame, ThumbsUp, MessageSquare, BadgeCheck, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { Flame, ThumbsUp, MessageSquare, BadgeCheck, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Loader2, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
@@ -199,13 +199,16 @@ export function TrendingPosts({ onPostClick, onTickerClick }: TrendingPostsProps
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <Flame className="w-5 h-5 text-orange-600" />
-          Trending Posts
-          <Badge variant="outline" className="ml-2 text-xs font-normal">
-            🔮 Ranked by Oracle
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-100/50">
+        <CardTitle className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl shadow-lg shadow-orange-500/20">
+            <Flame className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-lg font-semibold">Trending Posts</span>
+          <Badge variant="gradient" className="ml-1 text-xs font-medium">
+            <Sparkles className="w-3 h-3 mr-1" />
+            Oracle Ranked
           </Badge>
         </CardTitle>
         <div className="flex gap-2">
@@ -213,7 +216,7 @@ export function TrendingPosts({ onPostClick, onTickerClick }: TrendingPostsProps
             variant="outline"
             size="sm"
             onClick={() => scroll('left')}
-            className="h-8 w-8 p-0"
+            className="h-9 w-9 p-0 rounded-xl border-orange-200 hover:bg-orange-100 hover:border-orange-300"
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -221,34 +224,45 @@ export function TrendingPosts({ onPostClick, onTickerClick }: TrendingPostsProps
             variant="outline"
             size="sm"
             onClick={() => scroll('right')}
-            className="h-8 w-8 p-0"
+            className="h-9 w-9 p-0 rounded-xl border-orange-200 hover:bg-orange-100 hover:border-orange-300"
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-            <span className="ml-2 text-slate-500">Loading trending posts...</span>
+          <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+              </div>
+              <span className="text-slate-500 font-medium">Loading trending posts...</span>
+            </div>
           </div>
         ) : (
           <div className="relative">
             <div 
               ref={scrollContainerRef}
-              className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth"
+              className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide scroll-smooth"
             >
-              {posts.map((post) => (
+              {posts.map((post, index) => (
                 <div
                   key={post.id}
                   onClick={() => onPostClick(post.id)}
-                  className="flex-shrink-0 w-80 p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-md cursor-pointer transition-all bg-white"
+                  className="flex-shrink-0 w-80 p-5 rounded-2xl border border-slate-200/60 bg-white cursor-pointer
+                    transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                    hover:-translate-y-2 hover:shadow-xl hover:shadow-slate-200/50 hover:border-primary/20
+                    animate-slide-up opacity-0"
+                  style={{ 
+                    animationDelay: `${index * 0.05}s`,
+                    animationFillMode: 'forwards'
+                  }}
                 >
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2 mb-4">
                     <Badge 
-                      variant="secondary" 
-                      className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                      variant="success"
+                      className="px-3 py-1 font-semibold cursor-pointer hover:scale-105 transition-transform"
                       onClick={(e) => {
                         e.stopPropagation();
                         onTickerClick(post.ticker);
@@ -257,73 +271,76 @@ export function TrendingPosts({ onPostClick, onTickerClick }: TrendingPostsProps
                       ${post.ticker}
                     </Badge>
                     <Badge 
-                      variant="outline"
-                      className={
-                        post.sentiment === 'bullish'
-                          ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                          : post.sentiment === 'bearish'
-                          ? 'border-red-200 text-red-700 bg-red-50'
-                          : 'border-slate-200 text-slate-700'
+                      variant={
+                        post.sentiment === 'bullish' ? 'success' :
+                        post.sentiment === 'bearish' ? 'destructive' : 'outline'
                       }
+                      className="capitalize"
                     >
                       {post.sentiment}
                     </Badge>
                     {post.rankingScore > 0 && (
                       <Badge 
-                        variant="outline"
-                        className="border-purple-200 text-purple-700 bg-purple-50 text-xs"
+                        variant="gradient"
+                        className="text-xs ml-auto"
                       >
                         🔮 {post.rankingScore.toFixed(1)}
                       </Badge>
                     )}
                   </div>
 
-                  <h3 className="text-slate-900 mb-2 line-clamp-2 min-h-[3rem]">
+                  <h3 className="text-slate-900 font-semibold mb-3 line-clamp-2 min-h-[3rem] leading-snug">
                     {post.title}
                   </h3>
 
-                  <p className="text-slate-600 mb-3 line-clamp-2">
+                  <p className="text-slate-500 text-sm mb-4 line-clamp-2 leading-relaxed">
                     {post.summary}
                   </p>
 
                   {/* Stock Performance Since Post */}
-                  <div className="mb-3 p-2 bg-slate-50 rounded flex items-center justify-between">
-                    <span className="text-slate-600 text-sm">Since posted:</span>
-                    <div className={`flex items-center gap-1 ${
-                      post.stockPerformance >= 0 ? 'text-emerald-600' : 'text-red-600'
+                  <div className="mb-4 p-3 bg-gradient-to-r from-slate-50 to-slate-100/50 rounded-xl flex items-center justify-between">
+                    <span className="text-slate-500 text-sm font-medium">Since posted:</span>
+                    <div className={`flex items-center gap-1.5 font-semibold ${
+                      post.stockPerformance >= 0 ? 'text-emerald-600' : 'text-red-500'
                     }`}>
-                      {post.stockPerformance >= 0 ? (
-                        <TrendingUp className="w-4 h-4" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4" />
-                      )}
+                      <div className={`p-1 rounded-lg ${
+                        post.stockPerformance >= 0 ? 'bg-emerald-100' : 'bg-red-100'
+                      }`}>
+                        {post.stockPerformance >= 0 ? (
+                          <TrendingUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <TrendingDown className="w-3.5 h-3.5" />
+                        )}
+                      </div>
                       <span>{post.stockPerformance >= 0 ? '+' : ''}{post.stockPerformance.toFixed(1)}%</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 mb-3">
-                    <Avatar className="w-6 h-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Avatar className="w-8 h-8 ring-2 ring-white shadow-md">
                       <AvatarImage src={post.authorAvatar} />
-                      <AvatarFallback className="text-xs bg-emerald-500 text-white">
+                      <AvatarFallback className="text-xs">
                         {post.author?.charAt(0).toUpperCase() || 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-slate-700">{post.author}</span>
-                    {post.verified && (
-                      <BadgeCheck className="w-4 h-4 text-blue-600" />
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-700 font-medium text-sm">{post.author}</span>
+                      {post.verified && (
+                        <BadgeCheck className="w-4 h-4 text-blue-500" />
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-slate-500">
-                    <span className="text-sm">{post.timestamp}</span>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-between text-slate-400 text-sm pt-3 border-t border-slate-100">
+                    <span>{post.timestamp}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1.5 hover:text-primary transition-colors">
                         <ThumbsUp className="w-4 h-4" />
-                        <span>{post.upvotes}</span>
+                        <span className="font-medium">{post.upvotes}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 hover:text-primary transition-colors">
                         <MessageSquare className="w-4 h-4" />
-                        <span>{post.comments}</span>
+                        <span className="font-medium">{post.comments}</span>
                       </div>
                     </div>
                   </div>
